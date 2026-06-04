@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Champions World Cup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --gold: #F5C842;
+    --gold-dark: #C9941A;
+    --pitch: #1a3a2a;
+    --pitch-mid: #22472f;
+    --pitch-light: #2d5c3a;
+    --surface: #0f1f16;
+    --card: #162b1e;
+    --card-border: rgba(245,200,66,0.15);
+    --text: #f0f0e8;
+    --muted: #8aaa95;
+    --accent: #4CAF7D;
+    --danger: #e05555;
+    --sidebar-w: 240px;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--surface); color: var(--text); font-family: var(--font-body); min-height: 100vh; }
+
+  /* SIDEBAR */
+  #sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh;
+    width: var(--sidebar-w); background: var(--card);
+    border-right: 1px solid var(--card-border);
+    display: flex; flex-direction: column;
+    z-index: 100; overflow-y: auto;
+  }
+  .sidebar-logo {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .sidebar-logo .trophy { font-size: 28px; margin-bottom: 4px; }
+  .sidebar-logo h1 {
+    font-family: var(--font-display); font-size: 22px;
+    letter-spacing: 1px; color: var(--gold); line-height: 1.1;
+  }
+  .sidebar-logo p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sidebar-date {
+    padding: 10px 20px;
+    font-size: 11px; color: var(--muted);
+    border-bottom: 1px solid var(--card-border);
+  }
+  .nav-section { padding: 12px 20px 4px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px; font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(245,200,66,0.05); }
+  .nav-item.active { color: var(--gold); border-left-color: var(--gold); background: rgba(245,200,66,0.08); }
+  .nav-item .icon { font-size: 16px; }
+  .sidebar-footer {
+    margin-top: auto; padding: 16px 20px;
+    border-top: 1px solid var(--card-border);
+  }
+  .admin-btn {
+    width: 100%; padding: 8px; border-radius: 8px;
+    background: transparent; border: 1px solid var(--card-border);
+    color: var(--muted); font-size: 12px; cursor: pointer;
+    font-family: var(--font-body); transition: all 0.15s;
+  }
+  .admin-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* MAIN */
+  #main { margin-left: var(--sidebar-w); padding: 28px 32px; min-height: 100vh; }
+
+  /* SECTIONS */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* PAGE HEADER */
+  .page-header { margin-bottom: 24px; }
+  .page-header h2 { font-family: var(--font-display); font-size: 32px; letter-spacing: 1px; color: var(--gold); }
+  .page-header p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* CARDS GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 20px;
+  }
+  .card-sm { padding: 14px 16px; }
+  .card h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+  /* TEAM STANDING CARD */
+  .team-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 20px; position: relative; overflow: hidden;
+  }
+  .team-card.rank-1 { border-color: var(--gold); }
+  .team-card .rank-badge {
+    position: absolute; top: 12px; right: 12px;
+    font-family: var(--font-display); font-size: 48px;
+    color: rgba(245,200,66,0.08); line-height: 1;
+  }
+  .team-card .flag { font-size: 32px; margin-bottom: 8px; }
+  .team-card .team-name { font-family: var(--font-display); font-size: 22px; letter-spacing: 1px; color: var(--text); }
+  .team-card .score-big { font-family: var(--font-display); font-size: 44px; color: var(--gold); line-height: 1.1; }
+  .team-card .score-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .team-card .members { margin-top: 14px; border-top: 1px solid var(--card-border); padding-top: 12px; }
+  .member-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; }
+  .member-row .name { color: var(--text); }
+  .member-row .vol { color: var(--muted); }
+  .member-row .vol span { color: var(--accent); font-weight: 600; }
+  .working-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 6px; }
+
+  /* SCOREBOARD TABLE */
+  .score-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .score-table th { text-align: left; padding: 8px 12px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--card-border); }
+  .score-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .score-table tr:hover td { background: rgba(245,200,66,0.03); }
+  .score-table .rank-col { font-family: var(--font-display); font-size: 18px; color: var(--muted); width: 40px; }
+  .rank-1-row td { color: var(--gold); }
+  .score-table .pts { font-weight: 600; color: var(--accent); }
+
+  /* MOTM */
+  .motm-card {
+    background: var(--card); border: 2px solid var(--gold);
+    border-radius: 14px; padding: 24px; text-align: center;
+  }
+  .motm-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--pitch-light); margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 28px; color: var(--gold);
+    border: 2px solid var(--gold);
+  }
+  .motm-name { font-family: var(--font-display); font-size: 26px; letter-spacing: 1px; color: var(--gold); }
+  .motm-team { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .motm-vol { font-family: var(--font-display); font-size: 42px; color: var(--text); margin-top: 8px; }
+  .motm-vol-label { font-size: 11px; color: var(--muted); }
+  .star-row { display: flex; justify-content: center; gap: 4px; margin: 10px 0; }
+  .star { color: var(--gold); font-size: 16px; }
+
+  /* PROGRESS BAR */
+  .prog-wrap { margin-top: 6px; }
+  .prog-bar { height: 4px; background: var(--pitch-light); border-radius: 4px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--gold); border-radius: 4px; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* STAT PILL */
+  .stat-pill { display: inline-flex; align-items: center; gap: 6px; background: rgba(76,175,125,0.12); border: 1px solid rgba(76,175,125,0.25); border-radius: 20px; padding: 4px 10px; font-size: 12px; color: var(--accent); }
+
+  /* DOWNLOAD BTN */
+  .dl-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 8px;
+    background: var(--gold); color: #1a1a0a;
+    font-weight: 600; font-size: 13px; cursor: pointer;
+    border: none; font-family: var(--font-body);
+    transition: opacity 0.15s;
+  }
+  .dl-btn:hover { opacity: 0.88; }
+  .dl-btn-outline {
+    background: transparent; color: var(--gold);
+    border: 1px solid rgba(245,200,66,0.4);
+  }
+  .dl-btn-outline:hover { background: rgba(245,200,66,0.08); }
+
+  /* ADMIN PANEL */
+  .admin-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 999;
+    align-items: center; justify-content: center;
+  }
+  .admin-overlay.open { display: flex; }
+  .admin-modal {
+    background: var(--card); border: 1px solid var(--gold);
+    border-radius: 16px; width: 700px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .admin-modal-header {
+    padding: 20px 24px; border-bottom: 1px solid var(--card-border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .admin-modal-header h3 { font-family: var(--font-display); font-size: 24px; color: var(--gold); }
+  .admin-modal-body { padding: 24px; }
+  .close-btn { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
+  .close-btn:hover { color: var(--text); }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-input {
+    width: 100%; padding: 9px 12px; border-radius: 8px;
+    background: var(--pitch); border: 1px solid var(--card-border);
+    color: var(--text); font-size: 14px; font-family: var(--font-body);
+  }
+  .form-input:focus { outline: none; border-color: var(--gold); }
+  select.form-input option { background: var(--pitch); }
+
+  .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .admin-table th { text-align: left; padding: 8px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--card-border); }
+  .admin-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .admin-table input { width: 60px; padding: 4px 8px; border-radius: 6px; background: var(--pitch); border: 1px solid var(--card-border); color: var(--text); font-size: 13px; text-align: center; }
+  .admin-table select { padding: 4px 6px; border-radius: 6px; background: var(--pitch); border: 1px solid var(--card-border); color: var(--text); font-size: 12px; }
+
+  .tab-row { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab-btn {
+    padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--card-border); background: transparent;
+    color: var(--muted); cursor: pointer; font-family: var(--font-body);
+  }
+  .tab-btn.active { background: var(--gold); color: #1a1a0a; border-color: var(--gold); }
+
+  /* PIN SCREEN */
+  .pin-screen { text-align: center; padding: 24px; }
+  .pin-screen h4 { font-family: var(--font-display); font-size: 22px; color: var(--gold); margin-bottom: 8px; }
+  .pin-screen p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .pin-input { width: 160px; text-align: center; letter-spacing: 8px; font-size: 20px; }
+  .pin-error { color: var(--danger); font-size: 12px; margin-top: 8px; }
+
+  /* HISTORY */
+  .history-entry {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+  }
+  .history-entry .h-date { font-size: 11px; color: var(--muted); }
+  .history-entry .h-scores { display: flex; gap: 24px; margin-top: 8px; flex-wrap: wrap; }
+  .h-score-item { font-size: 13px; }
+  .h-score-item .h-team { color: var(--muted); font-size: 11px; }
+  .h-score-item .h-val { font-family: var(--font-display); font-size: 20px; color: var(--gold); }
+  .h-score-item .h-flag { font-size: 16px; }
+
+  /* SNAPSHOT AREA */
+  #snapshot-target {
+    background: var(--surface); padding: 24px; border-radius: 0;
+  }
+  .snap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .snap-header h2 { font-family: var(--font-display); font-size: 28px; color: var(--gold); }
+  .snap-header p { font-size: 12px; color: var(--muted); }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--accent); color: #0f1f16;
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    z-index: 9999; display: none;
+    animation: fadeInUp 0.3s;
+  }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    :root { --sidebar-w: 200px; }
+    #main { padding: 20px; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    #sidebar { transform: translateX(-100%); transition: transform 0.25s; }
+    #sidebar.open { transform: translateX(0); }
+    #main { margin-left: 0; padding: 16px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    #mobile-toggle { display: flex !important; }
+  }
+  #mobile-toggle {
+    display: none; position: fixed; top: 16px; left: 16px; z-index: 200;
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 8px; cursor: pointer;
+    color: var(--gold); font-size: 18px;
+  }
+  .section-gap { height: 20px; }
+</style>
+</head>
+<body>
+
+<button id="mobile-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">&#9776;</button>
+
+<div id="sidebar">
+  <div class="sidebar-logo">
+    <div class="trophy">&#127942;</div>
+    <h1>Champions<br>World Cup</h1>
+    <p id="side-date">Loading...</p>
+  </div>
+  <div class="sidebar-date" id="side-month">June 2026</div>
+
+  <div class="nav-section">Live</div>
+  <div class="nav-item active" onclick="nav('standings')"><span class="icon">&#127942;</span> Team standings</div>
+  <div class="nav-item" onclick="nav('daily')"><span class="icon">&#128197;</span> Daily scoreboard</div>
+
+  <div class="nav-section">Stats</div>
+  <div class="nav-item" onclick="nav('monthly')"><span class="icon">&#128202;</span> Monthly scoreboard</div>
+  <div class="nav-item" onclick="nav('motm')"><span class="icon">&#11088;</span> Man of the match</div>
+  <div class="nav-item" onclick="nav('performers')"><span class="icon">&#128081;</span> Top performers</div>
+
+  <div class="nav-section">Records</div>
+  <div class="nav-item" onclick="nav('history')"><span class="icon">&#128196;</span> Match history</div>
+
+  <div class="sidebar-footer">
+    <button class="admin-btn" onclick="openAdmin()">&#9881; Admin panel</button>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- STANDINGS -->
+  <div id="sec-standings" class="section active">
+    <div class="page-header">
+      <h2>Team Standings</h2>
+      <p id="standings-date">Today's live rankings</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+      <button class="dl-btn" onclick="downloadSnapshot()">&#8681; Download today's snapshot</button>
+      <span style="font-size:12px; color:var(--muted);">Saves as image</span>
+    </div>
+    <div id="snapshot-target">
+      <div class="snap-header">
+        <div>
+          <h2>&#127942; Team Champions World Cup</h2>
+          <p id="snap-date-label"></p>
+        </div>
+        <div style="text-align:right; font-size:12px; color:var(--muted);">Score = Total vol ÷ working members</div>
+      </div>
+      <div class="grid-2" id="team-cards-grid"></div>
+    </div>
+  </div>
+
+  <!-- DAILY SCOREBOARD -->
+  <div id="sec-daily" class="section">
+    <div class="page-header">
+      <h2>Daily Scoreboard</h2>
+      <p>Individual performance — today</p>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-daily')">&#8681; Download as image</button>
+    </div>
+    <div class="card">
+      <table class="score-table" id="daily-table">
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Team</th><th>Working</th><th>FTD vol</th><th>Pts</th>
+        </tr></thead>
+        <tbody id="daily-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MONTHLY SCOREBOARD -->
+  <div id="sec-monthly" class="section">
+    <div class="page-header">
+      <h2>Monthly Scoreboard</h2>
+      <p id="monthly-label">Cumulative rankings for this month</p>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-monthly')">&#8681; Download as image</button>
+    </div>
+    <div class="grid-4" id="monthly-stat-cards" style="margin-bottom:20px;"></div>
+    <div class="card">
+      <table class="score-table" id="monthly-table">
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Team</th><th>Days active</th><th>Total vol</th><th>Avg/day</th>
+        </tr></thead>
+        <tbody id="monthly-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MAN OF THE MATCH -->
+  <div id="sec-motm" class="section">
+    <div class="page-header">
+      <h2>Man of the Match</h2>
+      <p>Top individual performer today</p>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-motm')">&#8681; Download as image</button>
+    </div>
+    <div class="grid-2">
+      <div id="motm-card-wrap"></div>
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <h3>Today's top 5</h3>
+          <table class="score-table" id="motm-top5">
+            <thead><tr><th>#</th><th>Name</th><th>Team</th><th>FTD vol</th></tr></thead>
+            <tbody id="motm-top5-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP PERFORMERS -->
+  <div id="sec-performers" class="section">
+    <div class="page-header">
+      <h2>Top Performers</h2>
+      <p>Monthly individual rankings</p>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-performers')">&#8681; Download as image</button>
+    </div>
+    <div id="performers-grid" class="grid-3"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="sec-history" class="section">
+    <div class="page-header">
+      <h2>Match History</h2>
+      <p>Daily results archive</p>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+</div>
+
+<!-- ADMIN OVERLAY -->
+<div class="admin-overlay" id="admin-overlay">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <h3>&#9881; Admin Panel</h3>
+      <button class="close-btn" onclick="closeAdmin()">&#10005;</button>
+    </div>
+    <div class="admin-modal-body">
+      <div id="admin-pin-screen" class="pin-screen">
+        <h4>&#128274; Admin Access</h4>
+        <p>Enter admin password to continue</p>
+        <input type="password" class="form-input pin-input" id="pin-input" placeholder="&#9679;&#9679;&#9679;&#9679;" onkeydown="if(event.key==='Enter')checkPin()">
+        <div class="pin-error" id="pin-error"></div>
+        <div style="margin-top:16px;">
+          <button class="dl-btn" onclick="checkPin()">Unlock</button>
+        </div>
+      </div>
+      <div id="admin-content" style="display:none;">
+        <div class="tab-row">
+          <button class="tab-btn active" onclick="adminTab('scores')">Update scores</button>
+          <button class="tab-btn" onclick="adminTab('players')">Manage players</button>
+          <button class="tab-btn" onclick="adminTab('settings')">Settings</button>
+        </div>
+        <div id="admin-scores-tab">
+          <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">Enter today's FTD volumes. Working = member present today.</p>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-input" id="admin-date" style="max-width:180px;">
+          </div>
+          <table class="admin-table" id="admin-score-table">
+            <thead><tr><th>Name</th><th>Team</th><th>Working</th><th>FTD Vol</th></tr></thead>
+            <tbody id="admin-score-tbody"></tbody>
+          </table>
+          <div style="margin-top:16px; display:flex; gap:10px;">
+            <button class="dl-btn" onclick="saveScores()">&#10003; Save scores</button>
+            <button class="dl-btn dl-btn-outline" onclick="closeAdmin()">Cancel</button>
+          </div>
+        </div>
+        <div id="admin-players-tab" style="display:none;">
+          <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">Add or remove players from teams.</p>
+          <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="text" class="form-input" id="new-player-name" placeholder="Player name" style="max-width:180px;">
+            <select class="form-input" id="new-player-team" style="max-width:140px;">
+              <option value="ARGENTINA">Argentina</option>
+              <option value="PORTUGAL">Portugal</option>
+              <option value="BRAZIL">Brazil</option>
+              <option value="SPAIN">Spain</option>
+            </select>
+            <button class="dl-btn" onclick="addPlayer()">+ Add player</button>
+          </div>
+          <table class="admin-table">
+            <thead><tr><th>Name</th><th>Team</th><th>Action</th></tr></thead>
+            <tbody id="players-tbody"></tbody>
+          </table>
+        </div>
+        <div id="admin-settings-tab" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">Admin password</label>
+            <input type="password" class="form-input" id="new-password" placeholder="New password" style="max-width:200px;">
+            <button class="dl-btn" style="margin-top:8px;" onclick="changePassword()">Change password</button>
+          </div>
+          <div class="form-group" style="margin-top:20px;">
+            <label class="form-label">Google Sheets API key</label>
+            <input type="text" class="form-input" id="sheets-api-key" placeholder="AIzaSy..." style="max-width:360px;">
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">
+              Paste your Google Sheets API key to sync live data from your spreadsheet.
+            </div>
+            <div style="font-size:12px; color:var(--muted); margin-top:4px;">
+              Sheet ID: <code style="color:var(--gold); font-size:11px;">1-JkaVhp3Nt-OZS8KmnK2oVhAFJt-PMPb5VKrnvo0RKg</code>
+            </div>
+            <button class="dl-btn" style="margin-top:8px;" onclick="saveSheetConfig()">Save config</button>
+          </div>
+          <div class="form-group" style="margin-top:20px;">
+            <label class="form-label">Reset monthly data</label>
+            <button class="dl-btn" style="background:var(--danger); color:#fff;" onclick="resetMonth()">Reset month</button>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">Clears all history for current month. Use at month end.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast">Saved!</div>
+
+<script>
+const ADMIN_PASSWORD_KEY = 'tcwc_admin_pw';
+const DATA_KEY = 'tcwc_data';
+const HISTORY_KEY = 'tcwc_history';
+
+const FLAGS = { ARGENTINA: '&#127462;&#127479;', PORTUGAL: '&#127477;&#127481;', BRAZIL: '&#127463;&#127479;', SPAIN: '&#127466;&#127480;' };
+const TEAM_ORDER = ['ARGENTINA','PORTUGAL','BRAZIL','SPAIN'];
+
+function getDefaultData() {
+  return {
+    date: new Date().toISOString().split('T')[0],
+    players: [
+      {name:'Saidali A P',team:'ARGENTINA',working:true,vol:2},
+      {name:'Najmal K',team:'ARGENTINA',working:true,vol:5},
+      {name:'Muhammed Sinan M T',team:'ARGENTINA',working:true,vol:2},
+      {name:'Ruvaishid T',team:'ARGENTINA',working:true,vol:2},
+      {name:'Ummer Suhail M',team:'ARGENTINA',working:true,vol:1},
+      {name:'Abdul Jaleel',team:'PORTUGAL',working:true,vol:7},
+      {name:'Shijil Mon P',team:'PORTUGAL',working:true,vol:1},
+      {name:'Muhammed Ramees C',team:'PORTUGAL',working:true,vol:0},
+      {name:'Abhinand T',team:'BRAZIL',working:true,vol:2},
+      {name:'Ashik Rahman',team:'BRAZIL',working:true,vol:1},
+      {name:'Abdul Mujeeb',team:'BRAZIL',working:true,vol:1},
+      {name:'Abdul Noushad V',team:'BRAZIL',working:true,vol:2},
+      {name:'Muhammed Shahid K',team:'SPAIN',working:true,vol:0},
+    ]
+  };
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(DATA_KEY);
+    return raw ? JSON.parse(raw) : getDefaultData();
+  } catch(e) { return getDefaultData(); }
+}
+
+function saveData(d) {
+  localStorage.setItem(DATA_KEY, JSON.stringify(d));
+}
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) { return []; }
+}
+
+function saveHistory(h) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+}
+
+function getTeamScore(players, team) {
+  const members = players.filter(p => p.team === team && p.working);
+  if (!members.length) return 0;
+  const total = members.reduce((s, p) => s + (p.vol || 0), 0);
+  return total / members.length;
+}
+
+function getTeamTotal(players, team) {
+  return players.filter(p => p.team === team).reduce((s, p) => s + (p.vol || 0), 0);
+}
+
+function getWorkingCount(players, team) {
+  return players.filter(p => p.team === team && p.working).length;
+}
+
+function renderStandings() {
+  const data = loadData();
+  const teams = TEAM_ORDER.map(t => ({
+    team: t,
+    score: getTeamScore(data.players, t),
+    total: getTeamTotal(data.players, t),
+    working: getWorkingCount(data.players, t),
+    members: data.players.filter(p => p.team === t)
+  })).sort((a, b) => b.score - a.score);
+
+  const snap = document.getElementById('snap-date-label');
+  if (snap) snap.textContent = 'Date: ' + (data.date || today());
+
+  const grid = document.getElementById('team-cards-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const maxScore = teams[0].score || 1;
+  teams.forEach((t, i) => {
+    const card = document.createElement('div');
+    card.className = 'team-card' + (i === 0 ? ' rank-1' : '');
+    const pct = Math.round((t.score / maxScore) * 100);
+    card.innerHTML = `
+      <div class="rank-badge">${i+1}</div>
+      <div class="flag">${FLAGS[t.team] || ''}</div>
+      <div class="team-name">${t.team}</div>
+      <div class="score-big">${t.score.toFixed(2)}</div>
+      <div class="score-label">avg vol/working member &nbsp; <span class="stat-pill">&#128200; Total: ${t.total}</span></div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="prog-label"><span>${t.working} working</span><span>${t.members.length} total</span></div>
+      </div>
+      <div class="members">
+        ${t.members.map(p => `
+          <div class="member-row">
+            <span class="name">${p.working ? '<span class="working-dot"></span>' : ''}${p.name}</span>
+            <span class="vol">FTD: <span>${p.vol}</span></span>
+          </div>`).join('')}
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  document.getElementById('standings-date').textContent = 'Date: ' + (data.date || today());
+}
+
+function renderDaily() {
+  const data = loadData();
+  const sorted = [...data.players].sort((a, b) => (b.vol||0) - (a.vol||0));
+  const tbody = document.getElementById('daily-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  sorted.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.className = 'rank-1-row';
+    tr.innerHTML = `
+      <td class="rank-col">${i+1}</td>
+      <td>${p.name}</td>
+      <td>${FLAGS[p.team]||''} ${p.team}</td>
+      <td>${p.working ? '<span style="color:var(--accent)">Yes</span>' : '<span style="color:var(--muted)">No</span>'}</td>
+      <td>${p.vol}</td>
+      <td class="pts">${p.working ? p.vol.toFixed(1) : '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMonthly() {
+  const data = loadData();
+  const history = loadHistory();
+  const allDays = [data, ...history];
+
+  const playerMap = {};
+  data.players.forEach(p => {
+    playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+  });
+  allDays.forEach(day => {
+    day.players.forEach(p => {
+      if (!playerMap[p.name]) playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+      if (p.working) {
+        playerMap[p.name].days++;
+        playerMap[p.name].total += (p.vol || 0);
+      }
+    });
+  });
+
+  const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total);
+  const totalVol = sorted.reduce((s, p) => s + p.total, 0);
+  const topPlayer = sorted[0] || {};
+  const activeDays = allDays.length;
+
+  const statCards = document.getElementById('monthly-stat-cards');
+  if (statCards) {
+    statCards.innerHTML = `
+      <div class="card card-sm"><h3>Total volume</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${totalVol}</div></div>
+      <div class="card card-sm"><h3>Days recorded</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${activeDays}</div></div>
+      <div class="card card-sm"><h3>Top scorer</h3><div style="font-family:var(--font-display);font-size:18px;color:var(--gold)">${topPlayer.name||'-'}</div><div style="font-size:12px;color:var(--muted)">${topPlayer.total||0} vol</div></div>
+      <div class="card card-sm"><h3>Active players</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${sorted.filter(p=>p.days>0).length}</div></div>
+    `;
+  }
+
+  const tbody = document.getElementById('monthly-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  sorted.forEach((p, i) => {
+    const avg = p.days ? (p.total / p.days).toFixed(2) : 0;
+    const tr = document.createElement('tr');
+    if (i === 0) tr.className = 'rank-1-row';
+    tr.innerHTML = `
+      <td class="rank-col">${i+1}</td>
+      <td>${p.name}</td>
+      <td>${FLAGS[p.team]||''} ${p.team}</td>
+      <td>${p.days}</td>
+      <td>${p.total}</td>
+      <td class="pts">${avg}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMOTM() {
+  const data = loadData();
+  const working = data.players.filter(p => p.working).sort((a, b) => (b.vol||0) - (a.vol||0));
+  const top = working[0];
+  const wrap = document.getElementById('motm-card-wrap');
+  if (!wrap || !top) return;
+
+  const initials = top.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  wrap.innerHTML = `
+    <div class="motm-card">
+      <div style="font-size:12px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">&#11088; Man of the match</div>
+      <div class="motm-avatar">${initials}</div>
+      <div class="motm-name">${top.name}</div>
+      <div class="motm-team">${FLAGS[top.team]||''} ${top.team}</div>
+      <div class="star-row">${'<span class="star">&#9733;</span>'.repeat(5)}</div>
+      <div class="motm-vol">${top.vol}</div>
+      <div class="motm-vol-label">FTD volume today</div>
+    </div>`;
+
+  const tbody = document.getElementById('motm-top5-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  working.slice(0, 5).forEach((p, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.className = 'rank-1-row';
+    tr.innerHTML = `<td class="rank-col">${i+1}</td><td>${p.name}</td><td>${FLAGS[p.team]||''} ${p.team}</td><td class="pts">${p.vol}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPerformers() {
+  const data = loadData();
+  const history = loadHistory();
+  const allDays = [data, ...history];
+  const playerMap = {};
+  data.players.forEach(p => { playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 }; });
+  allDays.forEach(day => {
+    day.players.forEach(p => {
+      if (!playerMap[p.name]) playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+      if (p.working) { playerMap[p.name].days++; playerMap[p.name].total += (p.vol || 0); }
+    });
+  });
+
+  const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total).slice(0, 6);
+  const maxVol = sorted[0]?.total || 1;
+  const grid = document.getElementById('performers-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  sorted.forEach((p, i) => {
+    const pct = Math.round((p.total / maxVol) * 100);
+    const initials = p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--pitch-light);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:16px;color:var(--gold);">${initials}</div>
+        <div>
+          <div style="font-weight:500;font-size:14px;">${p.name}</div>
+          <div style="font-size:11px;color:var(--muted);">${FLAGS[p.team]||''} ${p.team}</div>
+        </div>
+        ${i === 0 ? '<span style="margin-left:auto;font-size:18px;">&#127942;</span>' : ''}
+      </div>
+      <div style="font-family:var(--font-display);font-size:28px;color:var(--gold);">${p.total}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Total FTD vol &nbsp;·&nbsp; ${p.days} days</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>`;
+    grid.appendChild(div);
+  });
+}
+
+function renderHistory() {
+  const data = loadData();
+  const history = loadHistory();
+  const all = [data, ...history];
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (all.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No history yet. Scores will appear here as you update daily data.</div>';
+    return;
+  }
+
+  all.forEach(day => {
+    const entry = document.createElement('div');
+    entry.className = 'history-entry';
+    const scores = TEAM_ORDER.map(t => ({
+      team: t,
+      score: getTeamScore(day.players || [], t),
+      total: getTeamTotal(day.players || [], t)
+    })).sort((a, b) => b.score - a.score);
+
+    entry.innerHTML = `
+      <div class="h-date">&#128197; ${day.date || '—'}</div>
+      <div class="h-scores">
+        ${scores.map((s, i) => `
+          <div class="h-score-item">
+            <div class="h-flag">${FLAGS[s.team]||''} ${i === 0 ? '&#127942;' : ''}</div>
+            <div class="h-val">${s.score.toFixed(2)}</div>
+            <div class="h-team">${s.team}</div>
+          </div>`).join('')}
+      </div>`;
+    list.appendChild(entry);
+  });
+}
+
+function nav(section) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-' + section);
+  if (sec) sec.classList.add('active');
+  event.currentTarget.classList.add('active');
+
+  if (section === 'standings') renderStandings();
+  if (section === 'daily') renderDaily();
+  if (section === 'monthly') renderMonthly();
+  if (section === 'motm') renderMOTM();
+  if (section === 'performers') renderPerformers();
+  if (section === 'history') renderHistory();
+
+  if (window.innerWidth < 640) {
+    document.getElementById('sidebar').classList.remove('open');
+  }
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function openAdmin() {
+  document.getElementById('admin-overlay').classList.add('open');
+  document.getElementById('admin-pin-screen').style.display = 'block';
+  document.getElementById('admin-content').style.display = 'none';
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-input').value = '';
+  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+}
+
+function closeAdmin() {
+  document.getElementById('admin-overlay').classList.remove('open');
+}
+
+function checkPin() {
+  const pw = localStorage.getItem(ADMIN_PASSWORD_KEY) || 'admin123';
+  const entered = document.getElementById('pin-input').value;
+  if (entered === pw) {
+    document.getElementById('admin-pin-screen').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    renderAdminScores();
+    renderAdminPlayers();
+    const dateInput = document.getElementById('admin-date');
+    if (dateInput) dateInput.value = loadData().date || today();
+  } else {
+    document.getElementById('pin-error').textContent = 'Wrong password. Try again.';
+    document.getElementById('pin-input').value = '';
+  }
+}
+
+function adminTab(tab) {
+  ['scores','players','settings'].forEach(t => {
+    const el = document.getElementById('admin-' + t + '-tab');
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', ['scores','players','settings'][i] === tab);
+  });
+}
+
+function renderAdminScores() {
+  const data = loadData();
+  const tbody = document.getElementById('admin-score-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  data.players.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${FLAGS[p.team]||''} ${p.team}</td>
+      <td><select data-i="${i}" class="working-sel">
+        <option value="1" ${p.working?'selected':''}>Yes</option>
+        <option value="0" ${!p.working?'selected':''}>No</option>
+      </select></td>
+      <td><input type="number" min="0" data-i="${i}" class="vol-input" value="${p.vol||0}"></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAdminPlayers() {
+  const data = loadData();
+  const tbody = document.getElementById('players-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  data.players.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${FLAGS[p.team]||''} ${p.team}</td>
+      <td><button onclick="removePlayer(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">&#10005; Remove</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function saveScores() {
+  const data = loadData();
+  const history = loadHistory();
+  const dateInput = document.getElementById('admin-date');
+  const newDate = dateInput ? dateInput.value : today();
+
+  if (data.date && data.date !== newDate) {
+    history.unshift({ date: data.date, players: JSON.parse(JSON.stringify(data.players)) });
+    if (history.length > 90) history.pop();
+    saveHistory(history);
+  }
+
+  document.querySelectorAll('.working-sel').forEach(sel => {
+    const i = parseInt(sel.dataset.i);
+    data.players[i].working = sel.value === '1';
+  });
+  document.querySelectorAll('.vol-input').forEach(inp => {
+    const i = parseInt(inp.dataset.i);
+    data.players[i].vol = parseInt(inp.value) || 0;
+  });
+  data.date = newDate;
+  saveData(data);
+  showToast('Scores saved!');
+  closeAdmin();
+  renderStandings();
+}
+
+function addPlayer() {
+  const name = document.getElementById('new-player-name').value.trim();
+  const team = document.getElementById('new-player-team').value;
+  if (!name) return;
+  const data = loadData();
+  data.players.push({ name, team, working: true, vol: 0 });
+  saveData(data);
+  document.getElementById('new-player-name').value = '';
+  renderAdminPlayers();
+  renderAdminScores();
+  showToast('Player added!');
+}
+
+function removePlayer(i) {
+  const data = loadData();
+  data.players.splice(i, 1);
+  saveData(data);
+  renderAdminPlayers();
+  renderAdminScores();
+  showToast('Player removed');
+}
+
+function changePassword() {
+  const pw = document.getElementById('new-password').value;
+  if (pw.length < 4) { showToast('Min 4 characters'); return; }
+  localStorage.setItem(ADMIN_PASSWORD_KEY, pw);
+  document.getElementById('new-password').value = '';
+  showToast('Password updated!');
+}
+
+function saveSheetConfig() {
+  const key = document.getElementById('sheets-api-key').value.trim();
+  localStorage.setItem('tcwc_sheets_key', key);
+  showToast('Config saved — see setup guide below');
+}
+
+function resetMonth() {
+  if (!confirm('Reset all monthly history? This cannot be undone.')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  showToast('Monthly data reset');
+  closeAdmin();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+function downloadSnapshot() {
+  const target = document.getElementById('snapshot-target');
+  html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = 'standings-' + (loadData().date || today()) + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('Image downloaded!');
+  });
+}
+
+function downloadSection(sectionId) {
+  const target = document.getElementById(sectionId);
+  html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = sectionId + '-' + today() + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('Image downloaded!');
+  });
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function init() {
+  const now = new Date();
+  const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  document.getElementById('side-date').textContent = now.toLocaleDateString('en-IN', opts);
+  document.getElementById('side-month').textContent = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  renderStandings();
+}
+
+init();
+</script>
+</body>
+</html>
