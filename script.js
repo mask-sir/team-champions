@@ -1,4 +1,73 @@
+async function loadSheetData() {
+  const response = await fetch(SHEET_URL);
+  const csv = await response.text();
 
+  console.log(csv);
+
+  return csv;
+}
+async function getLiveData() {
+
+  const [playersRes, entriesRes] = await Promise.all([
+    fetch(PLAYERS_URL),
+    fetch(SHEET_URL)
+  ]);
+
+  const playersCsv = await playersRes.text();
+  const entriesCsv = await entriesRes.text();
+
+  // PLAYERS
+  const playersLines = playersCsv.trim().split('\n');
+  playersLines.shift();
+
+  const players = {};
+
+  playersLines.forEach(row => {
+    const cols = row.split(',');
+
+    const name = cols[0]?.trim();
+    const team = cols[1]?.trim();
+
+    players[name] = {
+      name,
+      team,
+      working: false,
+      vol: 0
+    };
+  });
+
+  // FORM RESPONSES
+  const entryLines = entriesCsv.trim().split('\n');
+  entryLines.shift();
+
+  entryLines.forEach(row => {
+    const cols = row.split(',');
+
+    const timestamp = cols[0];
+    const player = cols[2];
+    const working = cols[3] === 'YES';
+    const vol = Number(cols[4]) || 0;
+
+    if (!players[player]) return;
+
+    if (
+      !players[player].timestamp ||
+      new Date(timestamp) > new Date(players[player].timestamp)
+    ) {
+      players[player].timestamp = timestamp;
+      players[player].working = working;
+      players[player].vol = vol;
+    }
+  });
+
+  console.log(Object.values(players));
+
+  return Object.values(players);
+}
+const PLAYERS_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=0&single=true&output=csv";
+const SHEET_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=771581313&single=true&output=csv";
 const ADMIN_PASSWORD_KEY = 'tcwc_admin_pw';
 const DATA_KEY = 'tcwc_data';
 const HISTORY_KEY = 'tcwc_history';
@@ -484,12 +553,33 @@ function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
 }
 
-function init() {
-  const now = new Date();
-  const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-  document.getElementById('side-date').textContent = now.toLocaleDateString('en-IN', opts);
-  document.getElementById('side-month').textContent = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-  renderStandings();
+async function init() {
+    const players = await getLiveData();
+
+    let data = loadData();
+    data.players = players;
+    saveData(data);
+
+    const now = new Date();
+    const opts = {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    };
+
+    document.getElementById('side-date').textContent =
+        now.toLocaleDateString('en-IN', opts);
+
+    document.getElementById('side-month').textContent =
+        now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+    renderStandings();
+    renderDaily();
+    renderMonthly();
+    renderMOTM();
+    renderPerformers();
+    renderHistory();
 }
 
 init();
