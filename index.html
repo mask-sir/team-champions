@@ -22,20 +22,16 @@
   <div class="sidebar-date" id="side-month">June 2026</div>
 
   <div class="nav-section">Live</div>
-  <div class="nav-item active" onclick="nav('standings')"><span class="icon">&#127942;</span> Team standings</div>
-  <div class="nav-item" onclick="nav('daily')"><span class="icon">&#128197;</span> Daily scoreboard</div>
+  <div class="nav-item active" onclick="nav('standings', this)"><span class="icon">&#127942;</span> Team standings</div>
+  <div class="nav-item" onclick="nav('daily', this)"><span class="icon">&#128197;</span> Daily scoreboard</div>
 
   <div class="nav-section">Stats</div>
-  <div class="nav-item" onclick="nav('monthly')"><span class="icon">&#128202;</span> Monthly scoreboard</div>
-  <div class="nav-item" onclick="nav('motm')"><span class="icon">&#11088;</span> Man of the match</div>
-  <div class="nav-item" onclick="nav('performers')"><span class="icon">&#128081;</span> Top performers</div>
+  <div class="nav-item" onclick="nav('monthly', this)"><span class="icon">&#128202;</span> Monthly scoreboard</div>
+  <div class="nav-item" onclick="nav('motm', this)"><span class="icon">&#11088;</span> Man of the match</div>
+  <div class="nav-item" onclick="nav('performers', this)"><span class="icon">&#128081;</span> Top performers</div>
 
   <div class="nav-section">Records</div>
-  <div class="nav-item" onclick="nav('history')"><span class="icon">&#128196;</span> Match history</div>
-
-  <div class="sidebar-footer">
-    <button class="admin-btn" onclick="openAdmin()">&#9881; Admin panel</button>
-  </div>
+  <div class="nav-item" onclick="nav('history', this)"><span class="icon">&#128196;</span> Match history</div>
 </div>
 
 <div id="main">
@@ -47,20 +43,19 @@
       <p id="standings-date">Today's live rankings</p>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
-      <button class="dl-btn" onclick="downloadSnapshot()">&#8681; Download today's snapshot</button>
-      <span style="font-size:12px; color:var(--muted);">Saves as image</span>
+      <div class="date-selector-wrap">
+        <span class="date-selector-icon">&#128197;</span>
+        <select id="date-select" class="date-selector" onchange="onDateChange(this.value)">
+          <option value="">Loading dates…</option>
+        </select>
+      </div>
+      <button class="dl-btn" onclick="downloadSnapshot()">&#8681; Download snapshot</button>
     </div>
     <div id="snapshot-target">
       <div class="snap-header">
         <div>
-          <h2>🏆 Team Champions World Cup</h2>
-
-<div style="margin:10px 0;">
-    <label>Date:</label>
-    <select id="date-select"></select>
-</div>
-
-
+          <h2>&#127942; Team Champions World Cup</h2>
+          <p id="snap-date-label" style="font-size:12px;color:var(--muted);margin-top:4px;"></p>
         </div>
         <div style="text-align:right; font-size:12px; color:var(--muted);">Score = Total vol ÷ working members</div>
       </div>
@@ -72,7 +67,7 @@
   <div id="sec-daily" class="section">
     <div class="page-header">
       <h2>Daily Scoreboard</h2>
-      <p>Individual performance — today</p>
+      <p id="daily-date-label">Individual performance — today</p>
     </div>
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-daily')">&#8681; Download as image</button>
@@ -80,7 +75,7 @@
     <div class="card">
       <table class="score-table" id="daily-table">
         <thead><tr>
-          <th>#</th><th>Name</th><th>Team</th><th>Working</th><th>FTD vol</th><th>Pts</th>
+          <th>#</th><th>Name</th><th>Team</th><th>Working</th><th>FTD Vol</th><th>Pts</th>
         </tr></thead>
         <tbody id="daily-tbody"></tbody>
       </table>
@@ -100,7 +95,7 @@
     <div class="card">
       <table class="score-table" id="monthly-table">
         <thead><tr>
-          <th>#</th><th>Name</th><th>Team</th><th>Days active</th><th>Total vol</th><th>Avg/day</th>
+          <th>#</th><th>Name</th><th>Team</th><th>Days Active</th><th>Total Vol</th><th>Avg/Day</th>
         </tr></thead>
         <tbody id="monthly-tbody"></tbody>
       </table>
@@ -111,7 +106,7 @@
   <div id="sec-motm" class="section">
     <div class="page-header">
       <h2>Man of the Match</h2>
-      <p>Top individual performer today</p>
+      <p id="motm-date-label">Top individual performer — today</p>
     </div>
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-motm')">&#8681; Download as image</button>
@@ -119,10 +114,10 @@
     <div class="grid-2">
       <div id="motm-card-wrap"></div>
       <div>
-        <div class="card" style="margin-bottom:16px;">
+        <div class="card">
           <h3>Today's top 5</h3>
           <table class="score-table" id="motm-top5">
-            <thead><tr><th>#</th><th>Name</th><th>Team</th><th>FTD vol</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Team</th><th>FTD Vol</th></tr></thead>
             <tbody id="motm-top5-body"></tbody>
           </table>
         </div>
@@ -153,89 +148,7 @@
 
 </div>
 
-<!-- ADMIN OVERLAY -->
-<div class="admin-overlay" id="admin-overlay">
-  <div class="admin-modal">
-    <div class="admin-modal-header">
-      <h3>&#9881; Admin Panel</h3>
-      <button class="close-btn" onclick="closeAdmin()">&#10005;</button>
-    </div>
-    <div class="admin-modal-body">
-      <div id="admin-pin-screen" class="pin-screen">
-        <h4>&#128274; Admin Access</h4>
-        <p>Enter admin password to continue</p>
-        <input type="password" class="form-input pin-input" id="pin-input" placeholder="&#9679;&#9679;&#9679;&#9679;" onkeydown="if(event.key==='Enter')checkPin()">
-        <div class="pin-error" id="pin-error"></div>
-        <div style="margin-top:16px;">
-          <button class="dl-btn" onclick="checkPin()">Unlock</button>
-        </div>
-      </div>
-      <div id="admin-content" style="display:none;">
-        <div class="tab-row">
-          <button class="tab-btn active" onclick="adminTab('scores')">Update scores</button>
-          <button class="tab-btn" onclick="adminTab('players')">Manage players</button>
-          <button class="tab-btn" onclick="adminTab('settings')">Settings</button>
-        </div>
-        <div id="admin-scores-tab">
-          <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">Enter today's FTD volumes. Working = member present today.</p>
-          <div class="form-group">
-            <label class="form-label">Date</label>
-            <input type="date" class="form-input" id="admin-date" style="max-width:180px;">
-          </div>
-          <table class="admin-table" id="admin-score-table">
-            <thead><tr><th>Name</th><th>Team</th><th>Working</th><th>FTD Vol</th></tr></thead>
-            <tbody id="admin-score-tbody"></tbody>
-          </table>
-          <div style="margin-top:16px; display:flex; gap:10px;">
-            <button class="dl-btn" onclick="saveScores()">&#10003; Save scores</button>
-            <button class="dl-btn dl-btn-outline" onclick="closeAdmin()">Cancel</button>
-          </div>
-        </div>
-        <div id="admin-players-tab" style="display:none;">
-          <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">Add or remove players from teams.</p>
-          <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-            <input type="text" class="form-input" id="new-player-name" placeholder="Player name" style="max-width:180px;">
-            <select class="form-input" id="new-player-team" style="max-width:140px;">
-              <option value="ARGENTINA">Argentina</option>
-              <option value="PORTUGAL">Portugal</option>
-              <option value="BRAZIL">Brazil</option>
-              <option value="SPAIN">Spain</option>
-            </select>
-            <button class="dl-btn" onclick="addPlayer()">+ Add player</button>
-          </div>
-          <table class="admin-table">
-            <thead><tr><th>Name</th><th>Team</th><th>Action</th></tr></thead>
-            <tbody id="players-tbody"></tbody>
-          </table>
-        </div>
-        <div id="admin-settings-tab" style="display:none;">
-          <div class="form-group">
-            <label class="form-label">Admin password</label>
-            <input type="password" class="form-input" id="new-password" placeholder="New password" style="max-width:200px;">
-            <button class="dl-btn" style="margin-top:8px;" onclick="changePassword()">Change password</button>
-          </div>
-          <div class="form-group" style="margin-top:20px;">
-            <label class="form-label">Google Sheets API key</label>
-            <input type="text" class="form-input" id="sheets-api-key" placeholder="AIzaSy..." style="max-width:360px;">
-            <div style="font-size:12px; color:var(--muted); margin-top:6px;">
-              Paste your Google Sheets API key to sync live data from your spreadsheet.
-            </div>
-            <div style="font-size:12px; color:var(--muted); margin-top:4px;">
-              Sheet ID: <code style="color:var(--gold); font-size:11px;">1-JkaVhp3Nt-OZS8KmnK2oVhAFJt-PMPb5VKrnvo0RKg</code>
-            </div>
-            <button class="dl-btn" style="margin-top:8px;" onclick="saveSheetConfig()">Save config</button>
-          </div>
-          <div class="form-group" style="margin-top:20px;">
-            <label class="form-label">Reset monthly data</label>
-            <button class="dl-btn" style="background:var(--danger); color:#fff;" onclick="resetMonth()">Reset month</button>
-            <div style="font-size:12px; color:var(--muted); margin-top:6px;">Clears all history for current month. Use at month end.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
+<!-- TOAST -->
 <div id="toast">Saved!</div>
 
 <script src="script.js"></script>

@@ -1,15 +1,62 @@
-let selectedDate = null;
+/* ─────────────────────────────────────────────────────────────
+   Team Champions World Cup — script.js
+   Data source: Google Sheets (published CSV, no API key needed)
+   All admin & Sheet API key logic removed.
+───────────────────────────────────────────────────────────── */
 
-async function loadSheetData() {
-  const response = await fetch(SHEET_URL);
-  const csv = await response.text();
+// ── Published CSV URLs (no API key required) ──────────────────
+const PLAYERS_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=0&single=true&output=csv";
+const SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=771581313&single=true&output=csv";
 
-  console.log(csv);
+// ── Constants ─────────────────────────────────────────────────
+const FLAGS = {
+  ARGENTINA: '&#127462;&#127479;',
+  PORTUGAL:  '&#127477;&#127481;',
+  BRAZIL:    '&#127463;&#127479;',
+  SPAIN:     '&#127466;&#127480;'
+};
+const TEAM_ORDER = ['ARGENTINA', 'PORTUGAL', 'BRAZIL', 'SPAIN'];
 
-  return csv;
+// ── State ─────────────────────────────────────────────────────
+let selectedDate = null;   // currently viewed date (dd/mm/yyyy string from sheet)
+let allEntryLines = [];    // raw CSV rows (minus header) cached after fetch
+let allPlayers = {};       // master player list from Players sheet
+let allDates = [];         // sorted unique dates from entries sheet
+
+// ── Helpers ───────────────────────────────────────────────────
+function today() {
+  return new Date().toISOString().split('T')[0];
 }
-async function getLiveData() {
 
+function parseDate(str) {
+  // Handles both dd/mm/yyyy and yyyy-mm-dd
+  if (!str) return null;
+  if (str.includes('/')) {
+    const [d, m, y] = str.split('/');
+    return new Date(+y, +m - 1, +d);
+  }
+  return new Date(str);
+}
+
+function formatDateLabel(str) {
+  const d = parseDate(str);
+  if (!d || isNaN(d)) return str;
+  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+// ── Data loading ──────────────────────────────────────────────
+async function getLiveData() {
   const [playersRes, entriesRes] = await Promise.all([
     fetch(PLAYERS_URL),
     fetch(SHEET_URL)
@@ -18,172 +65,129 @@ async function getLiveData() {
   const playersCsv = await playersRes.text();
   const entriesCsv = await entriesRes.text();
 
-  // PLAYERS
+  // Parse players sheet (header: Name, Team)
   const playersLines = playersCsv.trim().split('\n');
-  playersLines.shift();
-
-  const players = {};
-
+  playersLines.shift(); // remove header
+  allPlayers = {};
   playersLines.forEach(row => {
     const cols = row.split(',');
-
     const name = cols[0]?.trim();
-    const team = cols[1]?.trim();
-
-    players[name] = {
-      name,
-      team,
-      working: false,
-      vol: 0
-    };
+    const team = cols[1]?.trim().toUpperCase();
+    if (name) {
+      allPlayers[name] = { name, team, working: false, vol: 0, timestamp: null };
+    }
   });
 
-  // FORM RESPONSES
-  const entryLines = entriesCsv.trim().split('\n');
-  entryLines.shift();
+  // Parse entries sheet (header: Timestamp, Date, Player, Working, FTD Vol)
+  allEntryLines = entriesCsv.trim().split('\n');
+  allEntryLines.shift(); // remove header
 
-  const allDates = [...new Set(
-    entryLines.map(row => row.split(',')[1])
-)];
+  // Collect all unique dates and sort descending
+  const dateSet = new Set();
+  allEntryLines.forEach(row => {
+    const d = row.split(',')[1]?.trim();
+    if (d) dateSet.add(d);
+  });
 
-const dateSelect = document.getElementById('date-select');
+  allDates = [...dateSet].sort((a, b) => {
+    const da = parseDate(a), db = parseDate(b);
+    return db - da; // newest first
+  });
 
-if (dateSelect && dateSelect.options.length === 0) {
+  // Populate date selector
+  const dateSelect = document.getElementById('date-select');
+  if (dateSelect) {
+    dateSelect.innerHTML = '';
     allDates.forEach(date => {
-        const option = document.createElement('option');
-        option.value = date;
-        option.textContent = date;
-        dateSelect.appendChild(option);
+      const opt = document.createElement('option');
+      opt.value = date;
+      opt.textContent = formatDateLabel(date);
+      dateSelect.appendChild(opt);
     });
+  }
+
+  // Default to latest date
+  if (!selectedDate && allDates.length > 0) {
+    selectedDate = allDates[0];
+  }
+  if (dateSelect && selectedDate) {
+    dateSelect.value = selectedDate;
+  }
+
+  return buildPlayersForDate(selectedDate);
 }
 
- // Find latest date available in sheet
-const latestDate = entryLines
-    .map(row => row.split(',')[1])
-    .sort((a, b) => {
-        const [da, ma, ya] = a.split('/');
-        const [db, mb, yb] = b.split('/');
+function buildPlayersForDate(date) {
+  // Clone master player list
+  const snapshot = {};
+  Object.values(allPlayers).forEach(p => {
+    snapshot[p.name] = { ...p, working: false, vol: 0, timestamp: null };
+  });
 
-        return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
-    })[0];
-
-console.log("Latest date:", latestDate);
-
-if (!selectedDate) {
-    selectedDate = latestDate;
-}
-
-window.selectedDate = latestDate;
-
-entryLines.forEach(row => {
+  // Apply entries for the chosen date (keep latest timestamp per player)
+  allEntryLines.forEach(row => {
     const cols = row.split(',');
+    const timestamp  = cols[0]?.trim();
+    const entryDate  = cols[1]?.trim();
+    const playerName = cols[2]?.trim();
+    const working    = cols[3]?.trim().toUpperCase() === 'YES';
+    const vol        = Number(cols[4]) || 0;
 
-    const timestamp = cols[0];
-    const entryDate = cols[1];
-    const player = cols[2];
-    const working = cols[3] === 'YES';
-    const vol = Number(cols[4]) || 0;
+    if (entryDate !== date) return;
+    if (!snapshot[playerName]) return;
 
-    // Only use latest day's entries
-    if (entryDate !== selectedDate) return;
-
-    if (!players[player]) return;
-
-    if (
-        !players[player].timestamp ||
-        new Date(timestamp) > new Date(players[player].timestamp)
-    ) {
-        players[player].timestamp = timestamp;
-        players[player].working = working;
-        players[player].vol = vol;
+    const prev = snapshot[playerName].timestamp;
+    if (!prev || new Date(timestamp) > new Date(prev)) {
+      snapshot[playerName].timestamp = timestamp;
+      snapshot[playerName].working   = working;
+      snapshot[playerName].vol       = vol;
     }
-});
+  });
 
-  console.log(Object.values(players));
-
-  return Object.values(players);
-}
-const PLAYERS_URL =
-"https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=0&single=true&output=csv";
-const SHEET_URL =
-"https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=771581313&single=true&output=csv";
-const ADMIN_PASSWORD_KEY = 'tcwc_admin_pw';
-const DATA_KEY = 'tcwc_data';
-const HISTORY_KEY = 'tcwc_history';
-
-const FLAGS = { ARGENTINA: '&#127462;&#127479;', PORTUGAL: '&#127477;&#127481;', BRAZIL: '&#127463;&#127479;', SPAIN: '&#127466;&#127480;' };
-const TEAM_ORDER = ['ARGENTINA','PORTUGAL','BRAZIL','SPAIN'];
-
-function getDefaultData() {
-  return {
-    date: new Date().toISOString().split('T')[0],
-    players: [
-      {name:'Saidali A P',team:'ARGENTINA',working:true,vol:2},
-      {name:'Najmal K',team:'ARGENTINA',working:true,vol:5},
-      {name:'Muhammed Sinan M T',team:'ARGENTINA',working:true,vol:2},
-      {name:'Ruvaishid T',team:'ARGENTINA',working:true,vol:2},
-      {name:'Ummer Suhail M',team:'ARGENTINA',working:true,vol:1},
-      {name:'Abdul Jaleel',team:'PORTUGAL',working:true,vol:7},
-      {name:'Shijil Mon P',team:'PORTUGAL',working:true,vol:1},
-      {name:'Muhammed Ramees C',team:'PORTUGAL',working:true,vol:0},
-      {name:'Abhinand T',team:'BRAZIL',working:true,vol:2},
-      {name:'Ashik Rahman',team:'BRAZIL',working:true,vol:1},
-      {name:'Abdul Mujeeb',team:'BRAZIL',working:true,vol:1},
-      {name:'Abdul Noushad V',team:'BRAZIL',working:true,vol:2},
-      {name:'Muhammed Shahid K',team:'SPAIN',working:true,vol:0},
-    ]
-  };
+  return Object.values(snapshot);
 }
 
-function loadData() {
-  try {
-    const raw = localStorage.getItem(DATA_KEY);
-    return raw ? JSON.parse(raw) : getDefaultData();
-  } catch(e) { return getDefaultData(); }
+function buildAllDaysData() {
+  // Returns array of { date, players[] } for all available dates
+  return allDates.map(date => ({
+    date,
+    players: buildPlayersForDate(date)
+  }));
 }
 
-function saveData(d) {
-  localStorage.setItem(DATA_KEY, JSON.stringify(d));
-}
-
-function loadHistory() {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) { return []; }
-}
-
-function saveHistory(h) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
-}
-
+// ── Team score helpers ─────────────────────────────────────────
 function getTeamScore(players, team) {
-  const members = players.filter(p => p.team === team && p.working);
-  if (!members.length) return 0;
-  const total = members.reduce((s, p) => s + (p.vol || 0), 0);
-  return total / members.length;
+  const working = players.filter(p => p.team === team && p.working);
+  if (!working.length) return 0;
+  return working.reduce((s, p) => s + (p.vol || 0), 0) / working.length;
 }
 
 function getTeamTotal(players, team) {
-  return players.filter(p => p.team === team).reduce((s, p) => s + (p.vol || 0), 0);
+  return players.filter(p => p.team === team && p.working)
+    .reduce((s, p) => s + (p.vol || 0), 0);
 }
 
 function getWorkingCount(players, team) {
   return players.filter(p => p.team === team && p.working).length;
 }
 
+// ── RENDER: Standings ─────────────────────────────────────────
 function renderStandings() {
-  const data = loadData();
+  const players = buildPlayersForDate(selectedDate);
+
+  const dateLabel = formatDateLabel(selectedDate) || '—';
+  const standingsDate = document.getElementById('standings-date');
+  if (standingsDate) standingsDate.textContent = 'Date: ' + dateLabel;
+  const snapLabel = document.getElementById('snap-date-label');
+  if (snapLabel) snapLabel.textContent = 'Date: ' + dateLabel;
+
   const teams = TEAM_ORDER.map(t => ({
     team: t,
-    score: getTeamScore(data.players, t),
-    total: getTeamTotal(data.players, t),
-    working: getWorkingCount(data.players, t),
-    members: data.players.filter(p => p.team === t)
+    score:   getTeamScore(players, t),
+    total:   getTeamTotal(players, t),
+    working: getWorkingCount(players, t),
+    members: players.filter(p => p.team === t)
   })).sort((a, b) => b.score - a.score);
-
-  const snap = document.getElementById('snap-date-label');
- if (snap) snap.textContent = 'Date: ' + selectedDate;
 
   const grid = document.getElementById('team-cards-grid');
   if (!grid) return;
@@ -195,61 +199,77 @@ function renderStandings() {
     card.className = 'team-card' + (i === 0 ? ' rank-1' : '');
     const pct = Math.round((t.score / maxScore) * 100);
     card.innerHTML = `
-      <div class="rank-badge">${i+1}</div>
+      <div class="rank-badge">${i + 1}</div>
       <div class="flag">${FLAGS[t.team] || ''}</div>
       <div class="team-name">${t.team}</div>
       <div class="score-big">${t.score.toFixed(2)}</div>
-      <div class="score-label">avg vol/working member &nbsp; <span class="stat-pill">&#128200; Total: ${t.total}</span></div>
+      <div class="score-label">avg vol / working member &nbsp;
+        <span class="stat-pill">&#128200; Total: ${t.total}</span>
+      </div>
       <div class="prog-wrap">
         <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-        <div class="prog-label"><span>${t.working} working</span><span>${t.members.length} total</span></div>
+        <div class="prog-label">
+          <span>${t.working} working</span>
+          <span>${t.members.length} total</span>
+        </div>
       </div>
       <div class="members">
         ${t.members.map(p => `
           <div class="member-row">
-            <span class="name">${p.working ? '<span class="working-dot"></span>' : ''}${p.name}</span>
+            <span class="name">
+              ${p.working ? '<span class="working-dot"></span>' : ''}${p.name}
+            </span>
             <span class="vol">FTD: <span>${p.vol}</span></span>
           </div>`).join('')}
       </div>`;
     grid.appendChild(card);
   });
-
- document.getElementById('standings-date').textContent =
-    'Date: ' + (window.selectedDate || today());
 }
 
+// ── RENDER: Daily Scoreboard ──────────────────────────────────
 function renderDaily() {
-  const data = loadData();
-  const sorted = [...data.players].sort((a, b) => (b.vol||0) - (a.vol||0));
+  const players = buildPlayersForDate(selectedDate);
+  const dateLabel = formatDateLabel(selectedDate) || '—';
+
+  const lbl = document.getElementById('daily-date-label');
+  if (lbl) lbl.textContent = 'Individual performance — ' + dateLabel;
+
+  const sorted = [...players].sort((a, b) => (b.vol || 0) - (a.vol || 0));
   const tbody = document.getElementById('daily-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
+
   sorted.forEach((p, i) => {
     const tr = document.createElement('tr');
-    if (i === 0) tr.className = 'rank-1-row';
+    if (i === 0 && p.vol > 0) tr.className = 'rank-1-row';
     tr.innerHTML = `
-      <td class="rank-col">${i+1}</td>
+      <td class="rank-col">${i + 1}</td>
       <td>${p.name}</td>
-      <td>${FLAGS[p.team]||''} ${p.team}</td>
-      <td>${p.working ? '<span style="color:var(--accent)">Yes</span>' : '<span style="color:var(--muted)">No</span>'}</td>
+      <td>${FLAGS[p.team] || ''} ${p.team}</td>
+      <td>${p.working
+        ? '<span style="color:var(--accent)">&#9679; Yes</span>'
+        : '<span style="color:var(--muted)">No</span>'}</td>
       <td>${p.vol}</td>
-      <td class="pts">${p.working ? p.vol.toFixed(1) : '-'}</td>`;
+      <td class="pts">${p.working ? p.vol.toFixed(1) : '—'}</td>`;
     tbody.appendChild(tr);
   });
 }
 
+// ── RENDER: Monthly Scoreboard ────────────────────────────────
 function renderMonthly() {
-  const data = loadData();
-  const history = loadHistory();
-  const allDays = [data, ...history];
+  const allDaysData = buildAllDaysData();
 
+  // Aggregate across all days
   const playerMap = {};
-  data.players.forEach(p => {
+  Object.values(allPlayers).forEach(p => {
     playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
   });
-  allDays.forEach(day => {
+
+  allDaysData.forEach(day => {
     day.players.forEach(p => {
-      if (!playerMap[p.name]) playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+      if (!playerMap[p.name]) {
+        playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+      }
       if (p.working) {
         playerMap[p.name].days++;
         playerMap[p.name].total += (p.vol || 0);
@@ -258,31 +278,55 @@ function renderMonthly() {
   });
 
   const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total);
-  const totalVol = sorted.reduce((s, p) => s + p.total, 0);
-  const topPlayer = sorted[0] || {};
-  const activeDays = allDays.length;
+  const totalVol    = sorted.reduce((s, p) => s + p.total, 0);
+  const topPlayer   = sorted[0] || {};
+ const activeDays = allDaysData.length;
+  const activePlayers = sorted.filter(p => p.days > 0).length;
 
+  // Stat cards
   const statCards = document.getElementById('monthly-stat-cards');
   if (statCards) {
     statCards.innerHTML = `
-      <div class="card card-sm"><h3>Total volume</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${totalVol}</div></div>
-      <div class="card card-sm"><h3>Days recorded</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${activeDays}</div></div>
-      <div class="card card-sm"><h3>Top scorer</h3><div style="font-family:var(--font-display);font-size:18px;color:var(--gold)">${topPlayer.name||'-'}</div><div style="font-size:12px;color:var(--muted)">${topPlayer.total||0} vol</div></div>
-      <div class="card card-sm"><h3>Active players</h3><div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${sorted.filter(p=>p.days>0).length}</div></div>
-    `;
+      <div class="card card-sm">
+        <h3>Total Volume</h3>
+        <div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${totalVol}</div>
+      </div>
+      <div class="card card-sm">
+        <h3>Days Recorded</h3>
+        <div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${allDaysData.length}</div>
+      </div>
+      <div class="card card-sm">
+        <h3>Top Scorer</h3>
+        <div style="font-family:var(--font-display);font-size:18px;color:var(--gold);line-height:1.2;">${topPlayer.name || '—'}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${topPlayer.total || 0} vol</div>
+      </div>
+      <div class="card card-sm">
+        <h3>Active Players</h3>
+        <div style="font-family:var(--font-display);font-size:28px;color:var(--gold)">${activePlayers}</div>
+      </div>`;
   }
 
+  // Monthly label
+  const lbl = document.getElementById('monthly-label');
+  if (lbl) {
+    const now = new Date();
+    lbl.textContent = 'Cumulative rankings — ' +
+      now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }
+
+  // Table
   const tbody = document.getElementById('monthly-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
+
   sorted.forEach((p, i) => {
-    const avg = p.days ? (p.total / p.days).toFixed(2) : 0;
-    const tr = document.createElement('tr');
-    if (i === 0) tr.className = 'rank-1-row';
+    const avg = p.days ? (p.total / p.days).toFixed(2) : '0.00';
+    const tr  = document.createElement('tr');
+    if (i === 0 && p.total > 0) tr.className = 'rank-1-row';
     tr.innerHTML = `
-      <td class="rank-col">${i+1}</td>
+      <td class="rank-col">${i + 1}</td>
       <td>${p.name}</td>
-      <td>${FLAGS[p.team]||''} ${p.team}</td>
+      <td>${FLAGS[p.team] || ''} ${p.team}</td>
       <td>${p.days}</td>
       <td>${p.total}</td>
       <td class="pts">${avg}</td>`;
@@ -290,289 +334,232 @@ function renderMonthly() {
   });
 }
 
+// ── RENDER: Man of the Match ──────────────────────────────────
 function renderMOTM() {
-  const data = loadData();
-  const working = data.players.filter(p => p.working).sort((a, b) => (b.vol||0) - (a.vol||0));
-  const top = working[0];
-  const wrap = document.getElementById('motm-card-wrap');
-  if (!wrap || !top) return;
+  const players = buildPlayersForDate(selectedDate);
+  const dateLabel = formatDateLabel(selectedDate) || '—';
 
-  const initials = top.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  wrap.innerHTML = `
-    <div class="motm-card">
-      <div style="font-size:12px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">&#11088; Man of the match</div>
-      <div class="motm-avatar">${initials}</div>
-      <div class="motm-name">${top.name}</div>
-      <div class="motm-team">${FLAGS[top.team]||''} ${top.team}</div>
-      <div class="star-row">${'<span class="star">&#9733;</span>'.repeat(5)}</div>
-      <div class="motm-vol">${top.vol}</div>
-      <div class="motm-vol-label">FTD volume today</div>
-    </div>`;
+  const lbl = document.getElementById('motm-date-label');
+  if (lbl) lbl.textContent = 'Top individual performer — ' + dateLabel;
+
+  const working = [...players]
+    .filter(p => p.working && p.vol > 0)
+    .sort((a, b) => (b.vol || 0) - (a.vol || 0));
+
+  const top  = working[0];
+  const wrap = document.getElementById('motm-card-wrap');
+  if (!wrap) return;
+
+  if (!top) {
+    wrap.innerHTML = `
+      <div class="motm-empty">
+        <div style="font-size:32px;margin-bottom:8px;">&#128203;</div>
+        No working players with volume recorded for this date.
+      </div>`;
+  } else {
+    const initials = top.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    wrap.innerHTML = `
+      <div class="motm-card">
+        <div style="font-size:12px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">
+          &#11088; Man of the Match
+        </div>
+        <div class="motm-avatar">${initials}</div>
+        <div class="motm-name">${top.name}</div>
+        <div class="motm-team">${FLAGS[top.team] || ''} ${top.team}</div>
+        <div class="star-row">${'<span class="star">&#9733;</span>'.repeat(5)}</div>
+        <div class="motm-vol">${top.vol}</div>
+        <div class="motm-vol-label">FTD volume</div>
+      </div>`;
+  }
 
   const tbody = document.getElementById('motm-top5-body');
   if (!tbody) return;
   tbody.innerHTML = '';
+
+  if (working.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">No data for this date</td></tr>`;
+    return;
+  }
+
   working.slice(0, 5).forEach((p, i) => {
     const tr = document.createElement('tr');
     if (i === 0) tr.className = 'rank-1-row';
-    tr.innerHTML = `<td class="rank-col">${i+1}</td><td>${p.name}</td><td>${FLAGS[p.team]||''} ${p.team}</td><td class="pts">${p.vol}</td>`;
+    tr.innerHTML = `
+      <td class="rank-col">${i + 1}</td>
+      <td>${p.name}</td>
+      <td>${FLAGS[p.team] || ''} ${p.team}</td>
+      <td class="pts">${p.vol}</td>`;
     tbody.appendChild(tr);
   });
 }
 
+// ── RENDER: Top Performers ────────────────────────────────────
 function renderPerformers() {
-  const data = loadData();
-  const history = loadHistory();
-  const allDays = [data, ...history];
+  const allDaysData = buildAllDaysData();
+
   const playerMap = {};
-  data.players.forEach(p => { playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 }; });
-  allDays.forEach(day => {
+  Object.values(allPlayers).forEach(p => {
+    playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+  });
+
+  allDaysData.forEach(day => {
     day.players.forEach(p => {
-      if (!playerMap[p.name]) playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
-      if (p.working) { playerMap[p.name].days++; playerMap[p.name].total += (p.vol || 0); }
+      if (!playerMap[p.name]) {
+        playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+      }
+      if (p.working) {
+        playerMap[p.name].days++;
+        playerMap[p.name].total += (p.vol || 0);
+      }
     });
   });
 
-  const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total).slice(0, 6);
+  const sorted  = Object.values(playerMap)
+    .filter(p => p.days > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
   const maxVol = sorted[0]?.total || 1;
-  const grid = document.getElementById('performers-grid');
+  const grid   = document.getElementById('performers-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
+  if (sorted.length === 0) {
+    grid.innerHTML = `<div class="history-empty" style="grid-column:1/-1;">No performance data available yet.</div>`;
+    return;
+  }
+
   sorted.forEach((p, i) => {
-    const pct = Math.round((p.total / maxVol) * 100);
+    const pct      = Math.round((p.total / maxVol) * 100);
+    const avg      = p.days ? (p.total / p.days).toFixed(2) : '0.00';
     const initials = p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.innerHTML = `
+    const div      = document.createElement('div');
+    div.className  = 'card';
+    div.innerHTML  = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:var(--pitch-light);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:16px;color:var(--gold);">${initials}</div>
-        <div>
-          <div style="font-weight:500;font-size:14px;">${p.name}</div>
-          <div style="font-size:11px;color:var(--muted);">${FLAGS[p.team]||''} ${p.team}</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--pitch-light);
+             display:flex;align-items:center;justify-content:center;
+             font-family:var(--font-display);font-size:16px;color:var(--gold);
+             flex-shrink:0;">${initials}</div>
+        <div style="min-width:0;">
+          <div style="font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+          <div style="font-size:11px;color:var(--muted);">${FLAGS[p.team] || ''} ${p.team}</div>
         </div>
         ${i === 0 ? '<span style="margin-left:auto;font-size:18px;">&#127942;</span>' : ''}
       </div>
       <div style="font-family:var(--font-display);font-size:28px;color:var(--gold);">${p.total}</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Total FTD vol &nbsp;·&nbsp; ${p.days} days</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+        Total FTD vol &nbsp;·&nbsp; ${p.days} days &nbsp;·&nbsp; avg ${avg}/day
+      </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>`;
     grid.appendChild(div);
   });
 }
 
+// ── RENDER: Match History ─────────────────────────────────────
 function renderHistory() {
-  const data = loadData();
-  const history = loadHistory();
-  const all = [data, ...history];
+  const allDaysData = buildAllDaysData();
   const list = document.getElementById('history-list');
   if (!list) return;
   list.innerHTML = '';
 
-  if (all.length === 0) {
-    list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No history yet. Scores will appear here as you update daily data.</div>';
+  if (allDaysData.length === 0) {
+    list.innerHTML = `
+      <div class="history-empty">
+        <div style="font-size:32px;margin-bottom:8px;">&#128202;</div>
+        No history yet. Results will appear here as daily data is recorded.
+      </div>`;
     return;
   }
 
-  all.forEach(day => {
+  allDaysData.forEach(day => {
     const entry = document.createElement('div');
     entry.className = 'history-entry';
+
     const scores = TEAM_ORDER.map(t => ({
-      team: t,
+      team:  t,
       score: getTeamScore(day.players || [], t),
       total: getTeamTotal(day.players || [], t)
     })).sort((a, b) => b.score - a.score);
 
+    const winner = scores[0];
+
+    // Find MOTM for this day
+    const topPlayer = [...(day.players || [])]
+      .filter(p => p.working && p.vol > 0)
+      .sort((a, b) => b.vol - a.vol)[0];
+
     entry.innerHTML = `
-      <div class="h-date">&#128197; ${day.date || '—'}</div>
-      <div class="h-scores">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <div class="h-date">&#128197; ${formatDateLabel(day.date)}</div>
+        ${topPlayer ? `<div style="font-size:11px;color:var(--muted);">&#11088; MOTM: <span style="color:var(--gold)">${topPlayer.name}</span> (${topPlayer.vol} vol)</div>` : ''}
+      </div>
+      <div class="h-scores" style="margin-top:10px;">
         ${scores.map((s, i) => `
           <div class="h-score-item">
-            <div class="h-flag">${FLAGS[s.team]||''} ${i === 0 ? '&#127942;' : ''}</div>
+            <div class="h-flag">${FLAGS[s.team] || ''} ${i === 0 ? '&#127942;' : ''}</div>
             <div class="h-val">${s.score.toFixed(2)}</div>
             <div class="h-team">${s.team}</div>
+            <div style="font-size:10px;color:var(--muted);">Total: ${s.total}</div>
           </div>`).join('')}
-      </div>`;
+      </div>
+      ${winner && winner.score > 0 ? `
+        <div style="margin-top:10px;">
+          <span class="history-winner-badge">
+            &#127942; Winner: ${FLAGS[winner.team] || ''} ${winner.team} (${winner.score.toFixed(2)})
+          </span>
+        </div>` : ''}`;
     list.appendChild(entry);
   });
 }
 
-function nav(section) {
+// ── Navigation ────────────────────────────────────────────────
+function nav(section, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
   const sec = document.getElementById('sec-' + section);
   if (sec) sec.classList.add('active');
-  event.currentTarget.classList.add('active');
+  if (el) el.classList.add('active');
 
-  if (section === 'standings') renderStandings();
-  if (section === 'daily') renderDaily();
-  if (section === 'monthly') renderMonthly();
-  if (section === 'motm') renderMOTM();
+  if (section === 'standings')  renderStandings();
+  if (section === 'daily')      renderDaily();
+  if (section === 'monthly')    renderMonthly();
+  if (section === 'motm')       renderMOTM();
   if (section === 'performers') renderPerformers();
-  if (section === 'history') renderHistory();
+  if (section === 'history')    renderHistory();
 
   if (window.innerWidth < 640) {
     document.getElementById('sidebar').classList.remove('open');
   }
 }
 
-function today() { return new Date().toISOString().split('T')[0]; }
-
-function openAdmin() {
-  document.getElementById('admin-overlay').classList.add('open');
-  document.getElementById('admin-pin-screen').style.display = 'block';
-  document.getElementById('admin-content').style.display = 'none';
-  document.getElementById('pin-error').textContent = '';
-  document.getElementById('pin-input').value = '';
-  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+// ── Date change handler ───────────────────────────────────────
+function onDateChange(value) {
+  if (!value) return;
+  selectedDate = value;
+  // Re-render whichever section is currently active
+  const active = document.querySelector('.section.active');
+  if (!active) return;
+  const id = active.id.replace('sec-', '');
+  if (id === 'standings')  renderStandings();
+  if (id === 'daily')      renderDaily();
+  if (id === 'motm')       renderMOTM();
+  // Monthly/performers/history span all dates — no change needed on date switch
 }
 
-function closeAdmin() {
-  document.getElementById('admin-overlay').classList.remove('open');
+// ── Sidebar toggle (mobile) ───────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
 }
 
-function checkPin() {
-  const pw = localStorage.getItem(ADMIN_PASSWORD_KEY) || 'admin123';
-  const entered = document.getElementById('pin-input').value;
-  if (entered === pw) {
-    document.getElementById('admin-pin-screen').style.display = 'none';
-    document.getElementById('admin-content').style.display = 'block';
-    renderAdminScores();
-    renderAdminPlayers();
-    const dateInput = document.getElementById('admin-date');
-    if (dateInput) dateInput.value = loadData().date || today();
-  } else {
-    document.getElementById('pin-error').textContent = 'Wrong password. Try again.';
-    document.getElementById('pin-input').value = '';
-  }
-}
-
-function adminTab(tab) {
-  ['scores','players','settings'].forEach(t => {
-    const el = document.getElementById('admin-' + t + '-tab');
-    if (el) el.style.display = t === tab ? 'block' : 'none';
-  });
-  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', ['scores','players','settings'][i] === tab);
-  });
-}
-
-function renderAdminScores() {
-  const data = loadData();
-  const tbody = document.getElementById('admin-score-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-  data.players.forEach((p, i) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${p.name}</td>
-      <td>${FLAGS[p.team]||''} ${p.team}</td>
-      <td><select data-i="${i}" class="working-sel">
-        <option value="1" ${p.working?'selected':''}>Yes</option>
-        <option value="0" ${!p.working?'selected':''}>No</option>
-      </select></td>
-      <td><input type="number" min="0" data-i="${i}" class="vol-input" value="${p.vol||0}"></td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function renderAdminPlayers() {
-  const data = loadData();
-  const tbody = document.getElementById('players-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-  data.players.forEach((p, i) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${p.name}</td>
-      <td>${FLAGS[p.team]||''} ${p.team}</td>
-      <td><button onclick="removePlayer(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">&#10005; Remove</button></td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function saveScores() {
-  const data = loadData();
-  const history = loadHistory();
-  const dateInput = document.getElementById('admin-date');
-  const newDate = dateInput ? dateInput.value : today();
-
-  if (data.date && data.date !== newDate) {
-    history.unshift({ date: data.date, players: JSON.parse(JSON.stringify(data.players)) });
-    if (history.length > 90) history.pop();
-    saveHistory(history);
-  }
-
-  document.querySelectorAll('.working-sel').forEach(sel => {
-    const i = parseInt(sel.dataset.i);
-    data.players[i].working = sel.value === '1';
-  });
-  document.querySelectorAll('.vol-input').forEach(inp => {
-    const i = parseInt(inp.dataset.i);
-    data.players[i].vol = parseInt(inp.value) || 0;
-  });
-  data.date = newDate;
-  saveData(data);
-  showToast('Scores saved!');
-  closeAdmin();
-  renderStandings();
-}
-
-function addPlayer() {
-  const name = document.getElementById('new-player-name').value.trim();
-  const team = document.getElementById('new-player-team').value;
-  if (!name) return;
-  const data = loadData();
-  data.players.push({ name, team, working: true, vol: 0 });
-  saveData(data);
-  document.getElementById('new-player-name').value = '';
-  renderAdminPlayers();
-  renderAdminScores();
-  showToast('Player added!');
-}
-
-function removePlayer(i) {
-  const data = loadData();
-  data.players.splice(i, 1);
-  saveData(data);
-  renderAdminPlayers();
-  renderAdminScores();
-  showToast('Player removed');
-}
-
-function changePassword() {
-  const pw = document.getElementById('new-password').value;
-  if (pw.length < 4) { showToast('Min 4 characters'); return; }
-  localStorage.setItem(ADMIN_PASSWORD_KEY, pw);
-  document.getElementById('new-password').value = '';
-  showToast('Password updated!');
-}
-
-function saveSheetConfig() {
-  const key = document.getElementById('sheets-api-key').value.trim();
-  localStorage.setItem('tcwc_sheets_key', key);
-  showToast('Config saved — see setup guide below');
-}
-
-function resetMonth() {
-  if (!confirm('Reset all monthly history? This cannot be undone.')) return;
-  localStorage.removeItem(HISTORY_KEY);
-  showToast('Monthly data reset');
-  closeAdmin();
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 2500);
-}
-
+// ── Download helpers ──────────────────────────────────────────
 function downloadSnapshot() {
   const target = document.getElementById('snapshot-target');
   html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
-    const link = document.createElement('a');
-    link.download = 'standings-' + (loadData().date || today()) + '.png';
-    link.href = canvas.toDataURL('image/png');
+    const link      = document.createElement('a');
+    link.download   = 'standings-' + (selectedDate || today()).replace(/\//g, '-') + '.png';
+    link.href       = canvas.toDataURL('image/png');
     link.click();
     showToast('Image downloaded!');
   });
@@ -581,56 +568,41 @@ function downloadSnapshot() {
 function downloadSection(sectionId) {
   const target = document.getElementById(sectionId);
   html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
-    const link = document.createElement('a');
-    link.download = sectionId + '-' + today() + '.png';
-    link.href = canvas.toDataURL('image/png');
+    const link      = document.createElement('a');
+    link.download   = sectionId + '-' + today() + '.png';
+    link.href       = canvas.toDataURL('image/png');
     link.click();
     showToast('Image downloaded!');
   });
 }
 
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-}
-
+// ── Init ──────────────────────────────────────────────────────
 async function init() {
-    const players = await getLiveData();
+  // Update sidebar date/month display
+  const now  = new Date();
+  const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  const sideDate = document.getElementById('side-date');
+  if (sideDate) sideDate.textContent = now.toLocaleDateString('en-IN', opts);
+  const sideMonth = document.getElementById('side-month');
+  if (sideMonth) sideMonth.textContent = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
-    let data = loadData();
-    data.players = players;
-    saveData(data);
+  try {
+    await getLiveData();
+  } catch (err) {
+    console.error('Failed to load sheet data:', err);
+    showToast('Could not load data — check network');
+  }
 
-    const now = new Date();
-    const opts = {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    };
-
-    document.getElementById('side-date').textContent =
-        now.toLocaleDateString('en-IN', opts);
-
-    document.getElementById('side-month').textContent =
-        now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
-    renderStandings();
-    renderDaily();
-    renderMonthly();
-    renderMOTM();
-    renderPerformers();
-    renderHistory();
+  // Render the default active section (standings)
+  renderStandings();
+  renderDaily();
+  renderMonthly();
+  renderMOTM();
+  renderPerformers();
+  renderHistory();
 }
 
-document.addEventListener('change', async (e) => {
-    if (e.target.id === 'date-select') {
-        selectedDate = e.target.value;
-        await init();
-    }
-});
+// Auto-refresh every 5 minutes
+setInterval(() => location.reload(), 5 * 60 * 1000);
 
 init();
-
-setInterval(() => {
-    location.reload();
-}, 5 * 60 * 1000);
