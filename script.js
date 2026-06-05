@@ -259,6 +259,9 @@ function renderDaily() {
 function renderMonthly() {
   const allDaysData = buildAllDaysData();
 
+  const monthlyView =
+  document.getElementById('monthly-view')?.value || 'players';
+
   // Aggregate across all days
   const playerMap = {};
   Object.values(allPlayers).forEach(p => {
@@ -315,14 +318,32 @@ function renderMonthly() {
   }
 
   // Table
-  const tbody = document.getElementById('monthly-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+ const headerRow =
+  document.querySelector('#monthly-table thead tr');
+
+const tbody = document.getElementById('monthly-tbody');
+if (!tbody) return;
+
+tbody.innerHTML = '';
+
+if (monthlyView === 'players') {
+
+  headerRow.innerHTML = `
+    <th>#</th>
+    <th>Name</th>
+    <th>Team</th>
+    <th>Days Active</th>
+    <th>Total Vol</th>
+    <th>Avg/Day</th>
+  `;
 
   sorted.forEach((p, i) => {
     const avg = p.days ? (p.total / p.days).toFixed(2) : '0.00';
-    const tr  = document.createElement('tr');
-    if (i === 0 && p.total > 0) tr.className = 'rank-1-row';
+    const tr = document.createElement('tr');
+
+    if (i === 0 && p.total > 0)
+      tr.className = 'rank-1-row';
+
     tr.innerHTML = `
       <td class="rank-col">${i + 1}</td>
       <td>${p.name}</td>
@@ -330,8 +351,79 @@ function renderMonthly() {
       <td>${p.days}</td>
       <td>${p.total}</td>
       <td class="pts">${avg}</td>`;
+
     tbody.appendChild(tr);
   });
+
+} else {
+ headerRow.innerHTML = `
+  <th>#</th>
+  <th>Team</th>
+  <th>Wins</th>
+  <th>Total Volume</th>
+`;
+
+
+// ── TEAM MONTHLY RANKINGS ──
+
+const teamStats = {};
+
+TEAM_ORDER.forEach(team => {
+  teamStats[team] = {
+    team,
+    wins: 0,
+    totalVolume: 0
+  };
+});
+
+// Calculate wins and volume
+allDaysData.forEach(day => {
+
+  // Add team volume
+  TEAM_ORDER.forEach(team => {
+    teamStats[team].totalVolume += getTeamTotal(day.players, team);
+  });
+
+  // Find winner of the day
+  const scores = TEAM_ORDER.map(team => ({
+    team,
+    score: getTeamScore(day.players, team)
+  })).sort((a, b) => b.score - a.score);
+
+  if (scores[0] && scores[0].score > 0) {
+    teamStats[scores[0].team].wins++;
+  }
+});
+
+// Rank by wins first, then volume
+const rankedTeams = Object.values(teamStats)
+  .sort((a, b) =>
+    b.wins - a.wins ||
+    b.totalVolume - a.totalVolume
+  );
+
+// Fill table
+
+const teamTbody = tbody;
+if (teamTbody) {
+  teamTbody.innerHTML = '';
+
+  rankedTeams.forEach((t, i) => {
+    const tr = document.createElement('tr');
+
+    if (i === 0) tr.className = 'rank-1-row';
+
+  tr.innerHTML = `
+  <td class="rank-col">${i + 1}</td>
+  <td>${FLAGS[t.team] || ''} ${t.team}</td>
+  <td class="pts">${t.wins}</td>
+  <td>${t.totalVolume}</td>
+`;
+    teamTbody.appendChild(tr);
+  });
+}
+
+}
 }
 
 // ── RENDER: Man of the Match ──────────────────────────────────
