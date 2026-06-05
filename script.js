@@ -1,3 +1,5 @@
+let selectedDate = null;
+
 async function loadSheetData() {
   const response = await fetch(SHEET_URL);
   const csv = await response.text();
@@ -40,25 +42,62 @@ async function getLiveData() {
   const entryLines = entriesCsv.trim().split('\n');
   entryLines.shift();
 
-  entryLines.forEach(row => {
+  const allDates = [...new Set(
+    entryLines.map(row => row.split(',')[1])
+)];
+
+const dateSelect = document.getElementById('date-select');
+
+if (dateSelect && dateSelect.options.length === 0) {
+    allDates.forEach(date => {
+        const option = document.createElement('option');
+        option.value = date;
+        option.textContent = date;
+        dateSelect.appendChild(option);
+    });
+}
+
+ // Find latest date available in sheet
+const latestDate = entryLines
+    .map(row => row.split(',')[1])
+    .sort((a, b) => {
+        const [da, ma, ya] = a.split('/');
+        const [db, mb, yb] = b.split('/');
+
+        return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
+    })[0];
+
+console.log("Latest date:", latestDate);
+
+if (!selectedDate) {
+    selectedDate = latestDate;
+}
+
+window.selectedDate = latestDate;
+
+entryLines.forEach(row => {
     const cols = row.split(',');
 
     const timestamp = cols[0];
+    const entryDate = cols[1];
     const player = cols[2];
     const working = cols[3] === 'YES';
     const vol = Number(cols[4]) || 0;
 
+    // Only use latest day's entries
+    if (entryDate !== selectedDate) return;
+
     if (!players[player]) return;
 
     if (
-      !players[player].timestamp ||
-      new Date(timestamp) > new Date(players[player].timestamp)
+        !players[player].timestamp ||
+        new Date(timestamp) > new Date(players[player].timestamp)
     ) {
-      players[player].timestamp = timestamp;
-      players[player].working = working;
-      players[player].vol = vol;
+        players[player].timestamp = timestamp;
+        players[player].working = working;
+        players[player].vol = vol;
     }
-  });
+});
 
   console.log(Object.values(players));
 
@@ -144,7 +183,7 @@ function renderStandings() {
   })).sort((a, b) => b.score - a.score);
 
   const snap = document.getElementById('snap-date-label');
-  if (snap) snap.textContent = 'Date: ' + (data.date || today());
+ if (snap) snap.textContent = 'Date: ' + selectedDate;
 
   const grid = document.getElementById('team-cards-grid');
   if (!grid) return;
@@ -175,7 +214,8 @@ function renderStandings() {
     grid.appendChild(card);
   });
 
-  document.getElementById('standings-date').textContent = 'Date: ' + (data.date || today());
+ document.getElementById('standings-date').textContent =
+    'Date: ' + (window.selectedDate || today());
 }
 
 function renderDaily() {
@@ -582,4 +622,15 @@ async function init() {
     renderHistory();
 }
 
+document.addEventListener('change', async (e) => {
+    if (e.target.id === 'date-select') {
+        selectedDate = e.target.value;
+        await init();
+    }
+});
+
 init();
+
+setInterval(() => {
+    location.reload();
+}, 5 * 60 * 1000);
