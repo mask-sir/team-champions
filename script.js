@@ -113,10 +113,14 @@ async function getLiveData() {
     });
   }
 
-  // Default to latest date
-  if (!selectedDate && allDates.length > 0) {
-    selectedDate = allDates[0];
-  }
+  // Restore saved date or use latest date
+const savedDate = localStorage.getItem('selectedDate');
+
+if (savedDate && allDates.includes(savedDate)) {
+  selectedDate = savedDate;
+} else if (!selectedDate && allDates.length > 0) {
+  selectedDate = allDates[0];
+}
   if (dateSelect && selectedDate) {
     dateSelect.value = selectedDate;
   }
@@ -655,6 +659,7 @@ function nav(section, el) {
 
 // ── Date change handler ───────────────────────────────────────
 function onDateChange(value) {
+  localStorage.setItem('selectedDate', value);
   if (!value) return;
   selectedDate = value;
   // Re-render whichever section is currently active
