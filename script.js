@@ -74,7 +74,14 @@ async function getLiveData() {
     const name = cols[0]?.trim();
     const team = cols[1]?.trim().toUpperCase();
     if (name) {
-      allPlayers[name] = { name, team, working: false, vol: 0, timestamp: null };
+  allPlayers[name] = {
+  name,
+  team,
+  photo: cols[2]?.trim() || '',
+  working: false,
+  vol: 0,
+  timestamp: null
+};
     }
   });
 
@@ -449,13 +456,18 @@ function renderMOTM() {
         No working players with volume recorded for this date.
       </div>`;
   } else {
-    const initials = top.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+   console.log('MOTM:', top);
     wrap.innerHTML = `
       <div class="motm-card">
         <div style="font-size:12px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">
           &#11088; Man of the Match
         </div>
-        <div class="motm-avatar">${initials}</div>
+        <img
+  src="${top.photo || 'images/default-avatar.png'}"
+  alt="${top.name}"
+  onerror="this.src='images/default-avatar.png'"
+  class="motm-avatar"
+/>
         <div class="motm-name">${top.name}</div>
         <div class="motm-team">${FLAGS[top.team] || ''} ${top.team}</div>
         <div class="star-row">${'<span class="star">&#9733;</span>'.repeat(5)}</div>
@@ -491,13 +503,19 @@ function renderPerformers() {
 
   const playerMap = {};
   Object.values(allPlayers).forEach(p => {
-    playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+   playerMap[p.name] = {
+  name: p.name,
+  team: p.team,
+  photo: p.photo || '',
+  days: 0,
+  total: 0
+};
   });
 
   allDaysData.forEach(day => {
     day.players.forEach(p => {
       if (!playerMap[p.name]) {
-        playerMap[p.name] = { name: p.name, team: p.team, days: 0, total: 0 };
+        playerMap[p.name] = { name: p.name, team: p.team,photo: p.photo || '', days: 0, total: 0 };
       }
       if (p.working) {
         playerMap[p.name].days++;
@@ -529,10 +547,19 @@ function renderPerformers() {
     div.className  = 'card';
     div.innerHTML  = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:var(--pitch-light);
-             display:flex;align-items:center;justify-content:center;
-             font-family:var(--font-display);font-size:16px;color:var(--gold);
-             flex-shrink:0;">${initials}</div>
+       <img
+  src="${p.photo || 'images/default-avatar.png'}"
+  alt="${p.name}"
+  onerror="this.src='images/default-avatar.png'"
+  style="
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    object-fit:cover;
+    border:2px solid var(--gold);
+    flex-shrink:0;
+  "
+>
         <div style="min-width:0;">
           <div style="font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
           <div style="font-size:11px;color:var(--muted);">${FLAGS[p.team] || ''} ${p.team}</div>
