@@ -55,6 +55,59 @@ function showToast(msg) {
   t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
+
+async function shareSnapshot() {
+  try {
+    const target = document.getElementById('snapshot-target');
+
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#0f1f16',
+      scale: 2,
+      useCORS: true
+    });
+
+    const blob = await new Promise(resolve =>
+      canvas.toBlob(resolve, 'image/png')
+    );
+
+    const file = new File(
+      [blob],
+      `team-standings-${Date.now()}.png`,
+      { type: 'image/png' }
+    );
+
+    // Mobile share sheet (WhatsApp appears automatically)
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [file] })
+    ) {
+      await navigator.share({
+        title: 'Team Champions World Cup',
+        text: '🏆 Team Champions World Cup - Latest Team Standings',
+        files: [file]
+      });
+      return;
+    }
+
+    // Desktop fallback
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'team-standings.png';
+    a.click();
+
+    window.open(
+      'https://web.whatsapp.com/',
+      '_blank'
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('Unable to share snapshot.');
+  }
+}
 // ── Data loading ──────────────────────────────────────────────
 async function getLiveData() {
   const [playersRes, entriesRes] = await Promise.all([
@@ -468,6 +521,7 @@ function renderMOTM() {
         </div>
         <img
   src="${top.photo || 'images/default-avatar.png'}"
+  images/default-avatar.png
   alt="${top.name}"
   onerror="this.src='images/default-avatar.png'"
   class="motm-avatar"
@@ -553,6 +607,7 @@ function renderPerformers() {
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
        <img
   src="${p.photo || 'images/default-avatar.png'}"
+  crossorigin="anonymous"
   alt="${p.name}"
   onerror="this.src='images/default-avatar.png'"
   style="
@@ -680,7 +735,12 @@ function toggleSidebar() {
 // ── Download helpers ──────────────────────────────────────────
 function downloadSnapshot() {
   const target = document.getElementById('snapshot-target');
-  html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
+  html2canvas(target, {
+  backgroundColor: '#0f1f16',
+  scale: 2,
+  useCORS: true,
+  allowTaint: false
+}).then(canvas => {
     const link      = document.createElement('a');
     link.download   = 'standings-' + (selectedDate || today()).replace(/\//g, '-') + '.png';
     link.href       = canvas.toDataURL('image/png');
@@ -691,7 +751,12 @@ function downloadSnapshot() {
 
 function downloadSection(sectionId) {
   const target = document.getElementById(sectionId);
-  html2canvas(target, { backgroundColor: '#0f1f16', scale: 2 }).then(canvas => {
+ html2canvas(target, {
+  backgroundColor: '#0f1f16',
+  scale: 2,
+  useCORS: true,
+  allowTaint: false
+}).then(canvas => {
     const link      = document.createElement('a');
     link.download   = sectionId + '-' + today() + '.png';
     link.href       = canvas.toDataURL('image/png');
