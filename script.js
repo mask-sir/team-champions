@@ -646,7 +646,188 @@ function renderHistory() {
   });
 }
 
-// ── Navigation ─────────────────────────────────────────────────
+// ── RENDER: Head to Head ───────────────────────────────────────
+let h2hTeamA = null;
+let h2hTeamB = null;
+
+function renderH2H() {
+  const allDaysData = buildAllDaysData();
+
+  // Build team picker buttons if not already done
+  ['a', 'b'].forEach(side => {
+    const container = document.getElementById(`h2h-btns-${side}`);
+    if (!container || container.dataset.built) return;
+    container.dataset.built = '1';
+
+    TEAM_ORDER.forEach(team => {
+      const btn = document.createElement('button');
+      btn.className = 'h2h-team-btn';
+      btn.dataset.team = team;
+      btn.dataset.side = side;
+      btn.innerHTML = `${FLAGS[team] || ''} ${team}`;
+      btn.onclick = () => selectH2HTeam(side, team);
+      container.appendChild(btn);
+    });
+  });
+
+  // Default selection if none set
+  if (!h2hTeamA) selectH2HTeam('a', TEAM_ORDER[0], false);
+  if (!h2hTeamB) selectH2HTeam('b', TEAM_ORDER[1], false);
+
+  drawH2HResult(allDaysData);
+}
+
+function selectH2HTeam(side, team, redraw = true) {
+  if (side === 'a') h2hTeamA = team;
+  else              h2hTeamB = team;
+
+  // Update button states
+  document.querySelectorAll(`[data-side="${side}"]`).forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.team === team);
+  });
+
+  if (redraw) drawH2HResult(buildAllDaysData());
+}
+
+function drawH2HResult(allDaysData) {
+  const result = document.getElementById('h2h-result');
+  if (!result) return;
+
+  const teamA = h2hTeamA;
+  const teamB = h2hTeamB;
+
+  if (!teamA || !teamB || teamA === teamB) {
+    result.innerHTML = `<div class="h2h-empty">Select two different teams to compare.</div>`;
+    return;
+  }
+
+  // Compute per-day scores
+  const days = allDaysData.map(day => {
+    const scoreA = getTeamScore(day.players, teamA);
+    const scoreB = getTeamScore(day.players, teamB);
+    const totalA = getTeamTotal(day.players, teamA);
+    const totalB = getTeamTotal(day.players, teamB);
+    return { date: day.date, scoreA, scoreB, totalA, totalB };
+  }).filter(d => d.scoreA > 0 || d.scoreB > 0); // skip days neither played
+
+  if (days.length === 0) {
+    result.innerHTML = `<div class="h2h-empty">No matchup data found yet.</div>`;
+    return;
+  }
+
+  // Aggregate stats
+  let winsA = 0, winsB = 0, draws = 0;
+  let totalVolA = 0, totalVolB = 0;
+  let bestDayA = 0, bestDayB = 0;
+  let currentStreakA = 0, currentStreakB = 0, streakA = 0, streakB = 0;
+
+  days.forEach(d => {
+    totalVolA += d.totalA;
+    totalVolB += d.totalB;
+    if (d.scoreA > bestDayA) bestDayA = d.scoreA;
+    if (d.scoreB > bestDayB) bestDayB = d.scoreB;
+    if (d.scoreA > d.scoreB)      { winsA++; streakA++; streakB = 0; }
+    else if (d.scoreB > d.scoreA) { winsB++; streakB++; streakA = 0; }
+    else                           { draws++;  streakA = 0; streakB = 0; }
+    currentStreakA = streakA;
+    currentStreakB = streakB;
+  });
+
+  const played  = days.length;
+  const avgA    = days.reduce((s, d) => s + d.scoreA, 0) / played;
+  const avgB    = days.reduce((s, d) => s + d.scoreB, 0) / played;
+
+  // Head-to-head wins score
+  const h2hScoreA = winsA;
+  const h2hScoreB = winsB;
+
+  // Helper: bar widths for a pair of values
+  function barWidths(valA, valB) {
+    const max = Math.max(valA, valB, 0.01);
+    return { wA: Math.round((valA / max) * 100), wB: Math.round((valB / max) * 100) };
+  }
+
+  function statRow(label, valA, valB, displayA, displayB) {
+    const { wA, wB } = barWidths(valA, valB);
+    const aWins = valA > valB;
+    const bWins = valB > valA;
+    return `
+      <div class="h2h-stat-row">
+        <div class="h2h-val-a ${aWins ? 'winner' : ''}">${displayA}</div>
+        <div>
+          <div class="h2h-stat-label">${label}</div>
+          <div style="display:flex;gap:4px;margin-top:6px;">
+            <div style="flex:1;">
+              <div class="h2h-bar-wrap">
+                <div class="h2h-bar-a" style="width:${wA}%"></div>
+              </div>
+            </div>
+            <div style="flex:1;">
+              <div class="h2h-bar-wrap">
+                <div class="h2h-bar-b" style="width:${wB}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="h2h-val-b ${bWins ? 'winner' : ''}">${displayB}</div>
+      </div>`;
+  }
+
+  // Build daily breakdown rows (newest first)
+  const dayRows = [...days].reverse().map(d => {
+    let winClass = 'h2h-day-draw', winLabel = '—';
+    if (d.scoreA > d.scoreB) { winClass = 'h2h-day-win-a'; winLabel = teamA; }
+    if (d.scoreB > d.scoreA) { winClass = 'h2h-day-win-b'; winLabel = teamB; }
+    return `
+      <div class="h2h-day-row">
+        <div class="h2h-day-date">${formatDateLabel(d.date)}</div>
+        <div class="h2h-day-score-a">${d.scoreA.toFixed(2)}</div>
+        <div class="h2h-day-winner ${winClass}">${winLabel === '—' ? 'Draw' : '🏆'}</div>
+        <div class="h2h-day-score-b">${d.scoreB.toFixed(2)}</div>
+      </div>`;
+  }).join('');
+
+  result.innerHTML = `
+    <!-- Matchup header -->
+    <div class="h2h-matchup-header">
+      <div class="h2h-team-side">
+        <div class="h2h-team-flag">${FLAGS[teamA] || ''}</div>
+        <div class="h2h-team-name">${teamA}</div>
+        <div class="h2h-team-record">${winsA}W · ${draws}D · ${winsB}L</div>
+      </div>
+      <div class="h2h-score-center">
+        <div class="h2h-score-display">${h2hScoreA} — ${h2hScoreB}</div>
+        <div class="h2h-score-label">Wins over ${played} days</div>
+      </div>
+      <div class="h2h-team-side">
+        <div class="h2h-team-flag">${FLAGS[teamB] || ''}</div>
+        <div class="h2h-team-name">${teamB}</div>
+        <div class="h2h-team-record">${winsB}W · ${draws}D · ${winsA}L</div>
+      </div>
+    </div>
+
+    <!-- Stat bars -->
+    <div class="h2h-stats-grid">
+      ${statRow('Avg Score / Day', avgA, avgB, avgA.toFixed(2), avgB.toFixed(2))}
+      ${statRow('Total Volume',    totalVolA, totalVolB, totalVolA, totalVolB)}
+      ${statRow('Best Day Score',  bestDayA,  bestDayB,  bestDayA.toFixed(2), bestDayB.toFixed(2))}
+      ${statRow('Current Win Streak', currentStreakA, currentStreakB,
+                currentStreakA > 0 ? '🔥 ' + currentStreakA : currentStreakA,
+                currentStreakB > 0 ? '🔥 ' + currentStreakB : currentStreakB)}
+      ${statRow('Days Won', winsA, winsB, winsA, winsB)}
+    </div>
+
+    <!-- Daily breakdown -->
+    <div class="h2h-days-section">
+      <div class="h2h-days-header">
+        <span style="flex:1;text-align:right;color:var(--gold);">${teamA}</span>
+        <span style="width:80px;text-align:center;">Daily Result</span>
+        <span style="flex:1;text-align:left;color:var(--accent);">${teamB}</span>
+      </div>
+      ${dayRows}
+    </div>`;
+}
+
 function nav(section, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -661,6 +842,7 @@ function nav(section, el) {
   if (section === 'motm')       renderMOTM();
   if (section === 'performers') renderPerformers();
   if (section === 'history')    renderHistory();
+  if (section === 'h2h')        renderH2H();
 
   if (window.innerWidth < 640) {
     document.getElementById('sidebar')?.classList.remove('open');
@@ -693,6 +875,10 @@ function freezeAnimations(el) {
   all.forEach(n => {
     n.style.setProperty('animation', 'none', 'important');
     n.style.setProperty('transition', 'none', 'important');
+    // Force fully visible — keyframe start states (opacity:0, transform) persist
+    // even after animation is cancelled
+    n.style.setProperty('opacity', '1', 'important');
+    n.style.setProperty('transform', 'none', 'important');
   });
 }
 function thawAnimations(el) {
@@ -700,39 +886,93 @@ function thawAnimations(el) {
   all.forEach(n => {
     n.style.removeProperty('animation');
     n.style.removeProperty('transition');
+    n.style.removeProperty('opacity');
+    n.style.removeProperty('transform');
   });
 }
 
-// Core capture — returns a canvas promise with correct scroll/offset handling
+// Core capture — lifts element into isolated off-screen container so
+// sidebar margin/scroll/padding never bleeds into the output
 function captureElement(el) {
-  const rect = el.getBoundingClientRect();
   freezeAnimations(el);
 
-  return html2canvas(el, {
+  const CAPTURE_WIDTH = 900;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `
+    position:fixed; top:-9999px; left:-9999px;
+    width:${CAPTURE_WIDTH}px; background:#0f1f16;
+    padding:24px; box-sizing:border-box; z-index:-1;
+    font-family:'DM Sans',sans-serif;
+  `;
+
+  // Inject CSS vars so clone resolves them correctly (detached from main doc styles)
+  const varStyle = document.createElement('style');
+  varStyle.textContent = `
+    :root {
+      --gold:#F5C842; --gold-dark:#C9941A; --pitch:#1a3a2a;
+      --pitch-light:#2d5c3a; --surface:#0f1f16; --card:#162b1e;
+      --card-border:rgba(245,200,66,0.15); --text:#f0f0e8;
+      --muted:#8aaa95; --accent:#4CAF7D;
+      --font-display:'Bebas Neue',sans-serif;
+      --font-body:'DM Sans',sans-serif;
+    }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .team-card { background:var(--card); border:1px solid var(--card-border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
+    .team-card.rank-1 { border-color:var(--gold); }
+    .rank-badge { position:absolute; top:12px; right:12px; font-size:48px; color:rgba(245,200,66,0.08); line-height:1; }
+    .score-big { font-size:44px; color:var(--gold); line-height:1.1; }
+    .team-name { font-size:22px; letter-spacing:1px; color:var(--text); }
+    .score-label { font-size:11px; color:var(--muted); margin-top:2px; }
+    .stat-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(76,175,125,0.12); border:1px solid rgba(76,175,125,0.25); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--accent); }
+    .prog-wrap { margin-top:6px; }
+    .prog-bar { height:4px; background:var(--pitch-light); border-radius:4px; overflow:hidden; }
+    .prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--gold)); border-radius:4px; }
+    .prog-label { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px; }
+    .members { margin-top:14px; border-top:1px solid var(--card-border); padding-top:12px; }
+    .member-row { display:flex; justify-content:space-between; align-items:center; padding:5px 6px; font-size:13px; }
+    .member-row .name { color:var(--text); }
+    .member-row .vol { color:var(--muted); }
+    .member-row .vol span { color:var(--accent); font-weight:600; }
+    .working-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-right:6px; }
+    .snap-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+    .snap-header h2 { font-size:28px; color:var(--gold); letter-spacing:1px; }
+    *, *::before, *::after { animation:none !important; transition:none !important; box-sizing:border-box; margin:0; padding:0; }
+  `;
+  wrapper.appendChild(varStyle);
+
+  const clone = el.cloneNode(true);
+
+  // Kill animations AND force visible:
+  // cardFlipIn keyframe starts at opacity:0 — animation:none alone doesn't reset it.
+  // cssText would also wipe the !important overrides, so use setProperty throughout.
+  clone.querySelectorAll('*').forEach(n => {
+    n.style.setProperty('animation', 'none', 'important');
+    n.style.setProperty('transition', 'none', 'important');
+    n.style.setProperty('opacity', '1', 'important');
+    n.style.setProperty('transform', 'none', 'important');
+  });
+  clone.style.setProperty('width', '100%');
+  clone.style.setProperty('background', 'transparent');
+  clone.style.setProperty('padding', '0');
+
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
+  return html2canvas(wrapper, {
     backgroundColor: '#0f1f16',
     scale: 2,
     useCORS: true,
     allowTaint: false,
-    // Fix scroll-offset clipping bug
-    scrollX: -window.scrollX,
-    scrollY: -window.scrollY,
-    // Ensure full element width captured regardless of viewport
-    width:  el.scrollWidth,
-    height: el.scrollHeight,
-    windowWidth:  document.documentElement.scrollWidth,
-    windowHeight: document.documentElement.scrollHeight,
-    x: 0,
-    y: 0,
-    onclone: (cloned) => {
-      // In the cloned doc, remove sidebar margin so cards fill full width
-      const main = cloned.getElementById('main');
-      if (main) { main.style.marginLeft = '0'; main.style.paddingLeft = '24px'; }
-      // Strip all animations in clone too
-      const style = cloned.createElement('style');
-      style.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; }';
-      cloned.head.appendChild(style);
-    }
-  }).finally(() => thawAnimations(el));
+    width:  CAPTURE_WIDTH,
+    height: wrapper.scrollHeight,
+    scrollX: 0,
+    scrollY: 0,
+    windowWidth: CAPTURE_WIDTH,
+  }).finally(() => {
+    document.body.removeChild(wrapper);
+    thawAnimations(el);
+  });
 }
 
 // Share blob as file via Web Share API (mobile) or fallback (desktop)

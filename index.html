@@ -48,6 +48,7 @@
 
   <div class="nav-section">Records</div>
   <div class="nav-item" onclick="nav('history', this)"><span class="icon">&#128196;</span> Match history</div>
+  <div class="nav-item" onclick="nav('h2h', this)"><span class="icon">&#9876;&#65039;</span> Head to Head</div>
 </div>
 
 <div id="main">
@@ -164,6 +165,32 @@
       <p>Daily results archive</p>
     </div>
     <div id="history-list"></div>
+  </div>
+
+  <!-- HEAD TO HEAD -->
+  <div id="sec-h2h" class="section">
+    <div class="page-header">
+      <h2>Head to Head</h2>
+      <p>Pick two teams — compare every stat</p>
+    </div>
+
+    <!-- Team pickers -->
+    <div class="h2h-picker-row">
+      <div class="h2h-team-pick" id="h2h-pick-a">
+        <div class="h2h-pick-label">Team A</div>
+        <div class="h2h-pick-btns" id="h2h-btns-a"></div>
+      </div>
+
+      <div class="h2h-vs-badge">VS</div>
+
+      <div class="h2h-team-pick" id="h2h-pick-b">
+        <div class="h2h-pick-label">Team B</div>
+        <div class="h2h-pick-btns" id="h2h-btns-b"></div>
+      </div>
+    </div>
+
+    <!-- Result area -->
+    <div id="h2h-result"></div>
   </div>
 
 </div>
