@@ -1,16 +1,16 @@
 /* ─────────────────────────────────────────────────────────────
    Team Champions World Cup — script.js
-   Data source: Google Sheets (published CSV, no API key needed)
-   All admin & Sheet API key logic removed.
+   Fixed: MOTM img bug, motm-avatar class, monthly header crash,
+          dead var, init over-render. Added FIFA animations.
 ───────────────────────────────────────────────────────────── */
 
-// ── Published CSV URLs (no API key required) ──────────────────
+// ── Published CSV URLs ────────────────────────────────────────
 const PLAYERS_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=0&single=true&output=csv";
 const SHEET_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSYUWCc26thkqu-YY0ZM5a7BkRPBMt1-lXupWx8QocSnjSBPqnC3Mg7k48U1VfD19MCRm8D7Pg5dm_p/pub?gid=771581313&single=true&output=csv";
 
-// ── Constants ─────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────
 const FLAGS = {
   ARGENTINA: '&#127462;&#127479;',
   PORTUGAL:  '&#127477;&#127481;',
@@ -19,19 +19,18 @@ const FLAGS = {
 };
 const TEAM_ORDER = ['ARGENTINA', 'PORTUGAL', 'BRAZIL', 'SPAIN'];
 
-// ── State ─────────────────────────────────────────────────────
-let selectedDate = null;   // currently viewed date (dd/mm/yyyy string from sheet)
-let allEntryLines = [];    // raw CSV rows (minus header) cached after fetch
-let allPlayers = {};       // master player list from Players sheet
-let allDates = [];         // sorted unique dates from entries sheet
+// ── State ──────────────────────────────────────────────────────
+let selectedDate  = null;
+let allEntryLines = [];
+let allPlayers    = {};
+let allDates      = [];
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────
 function today() {
   return new Date().toISOString().split('T')[0];
 }
 
 function parseDate(str) {
-  // Handles both dd/mm/yyyy and yyyy-mm-dd
   if (!str) return null;
   if (str.includes('/')) {
     const [d, m, y] = str.split('/');
@@ -55,60 +54,74 @@ function showToast(msg) {
   t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
+// ── FIFA: Confetti ─────────────────────────────────────────────
+function launchConfetti(duration = 3000) {
+  const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.classList.add('active');
 
-async function shareSnapshot() {
-  try {
-    const target = document.getElementById('snapshot-target');
+  const colors = ['#F5C842','#4CAF7D','#ffffff','#e05555','#8aaa95'];
+  const pieces = Array.from({ length: 120 }, () => ({
+    x:    Math.random() * canvas.width,
+    y:    Math.random() * -canvas.height,
+    size: Math.random() * 8 + 4,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vx:   (Math.random() - 0.5) * 4,
+    vy:   Math.random() * 4 + 2,
+    rot:  Math.random() * 360,
+    rspd: (Math.random() - 0.5) * 6
+  }));
 
-    const canvas = await html2canvas(target, {
-      backgroundColor: '#0f1f16',
-      scale: 2,
-      useCORS: true
+  let start = null;
+  function frame(ts) {
+    if (!start) start = ts;
+    const elapsed = ts - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    pieces.forEach(p => {
+      p.x   += p.vx;
+      p.y   += p.vy;
+      p.rot += p.rspd;
+      if (p.y > canvas.height) { p.y = -p.size; p.x = Math.random() * canvas.width; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.5);
+      ctx.restore();
     });
 
-    const blob = await new Promise(resolve =>
-      canvas.toBlob(resolve, 'image/png')
-    );
-
-    const file = new File(
-      [blob],
-      `team-standings-${Date.now()}.png`,
-      { type: 'image/png' }
-    );
-
-    // Mobile share sheet (WhatsApp appears automatically)
-    if (
-      navigator.share &&
-      navigator.canShare &&
-      navigator.canShare({ files: [file] })
-    ) {
-      await navigator.share({
-        title: 'Team Champions World Cup',
-        text: '🏆 Team Champions World Cup - Latest Team Standings',
-        files: [file]
-      });
-      return;
+    if (elapsed < duration) {
+      requestAnimationFrame(frame);
+    } else {
+      canvas.classList.remove('active');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-
-    // Desktop fallback
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'team-standings.png';
-    a.click();
-
-    window.open(
-      'https://web.whatsapp.com/',
-      '_blank'
-    );
-
-  } catch (err) {
-    console.error(err);
-    alert('Unable to share snapshot.');
   }
+  requestAnimationFrame(frame);
 }
-// ── Data loading ──────────────────────────────────────────────
+
+// ── FIFA: Goal Banner ──────────────────────────────────────────
+function showGoalBanner(winnerName) {
+  const banner = document.getElementById('goal-banner');
+  const sub    = document.getElementById('goal-banner-sub');
+  if (!banner || !sub) return;
+  sub.textContent = `🏆 ${winnerName} leads today!`;
+  banner.classList.add('show');
+  setTimeout(() => banner.classList.remove('show'), 3500);
+}
+
+// ── FIFA: Celebrate top team ───────────────────────────────────
+function celebrateLeader(teams) {
+  if (!teams || !teams[0] || teams[0].score <= 0) return;
+  showGoalBanner(teams[0].team);
+  launchConfetti(4000);
+}
+
+// ── Data loading ───────────────────────────────────────────────
 async function getLiveData() {
   const [playersRes, entriesRes] = await Promise.all([
     fetch(PLAYERS_URL),
@@ -118,31 +131,31 @@ async function getLiveData() {
   const playersCsv = await playersRes.text();
   const entriesCsv = await entriesRes.text();
 
-  // Parse players sheet (header: Name, Team)
+  // Parse players sheet (Name, Team, Photo)
   const playersLines = playersCsv.trim().split('\n');
-  playersLines.shift(); // remove header
+  playersLines.shift();
   allPlayers = {};
   playersLines.forEach(row => {
     const cols = row.split(',');
     const name = cols[0]?.trim();
     const team = cols[1]?.trim().toUpperCase();
     if (name) {
-  allPlayers[name] = {
-  name,
-  team,
-  photo: cols[2]?.trim() || '',
-  working: false,
-  vol: 0,
-  timestamp: null
-};
+      allPlayers[name] = {
+        name,
+        team,
+        photo: cols[2]?.trim() || '',
+        working: false,
+        vol: 0,
+        timestamp: null
+      };
     }
   });
 
-  // Parse entries sheet (header: Timestamp, Date, Player, Working, FTD Vol)
+  // Parse entries sheet (Timestamp, Date, Player, Working, FTD Vol)
   allEntryLines = entriesCsv.trim().split('\n');
-  allEntryLines.shift(); // remove header
+  allEntryLines.shift();
 
-  // Collect all unique dates and sort descending
+  // Collect unique dates sorted descending
   const dateSet = new Set();
   allEntryLines.forEach(row => {
     const d = row.split(',')[1]?.trim();
@@ -151,7 +164,7 @@ async function getLiveData() {
 
   allDates = [...dateSet].sort((a, b) => {
     const da = parseDate(a), db = parseDate(b);
-    return db - da; // newest first
+    return db - da;
   });
 
   // Populate date selector
@@ -166,14 +179,14 @@ async function getLiveData() {
     });
   }
 
-  // Restore saved date or use latest date
-const savedDate = localStorage.getItem('selectedDate');
+  // Restore saved date or use latest
+  const savedDate = localStorage.getItem('selectedDate');
+  if (savedDate && allDates.includes(savedDate)) {
+    selectedDate = savedDate;
+  } else if (!selectedDate && allDates.length > 0) {
+    selectedDate = allDates[0];
+  }
 
-if (savedDate && allDates.includes(savedDate)) {
-  selectedDate = savedDate;
-} else if (!selectedDate && allDates.length > 0) {
-  selectedDate = allDates[0];
-}
   if (dateSelect && selectedDate) {
     dateSelect.value = selectedDate;
   }
@@ -182,20 +195,18 @@ if (savedDate && allDates.includes(savedDate)) {
 }
 
 function buildPlayersForDate(date) {
-  // Clone master player list
   const snapshot = {};
   Object.values(allPlayers).forEach(p => {
     snapshot[p.name] = { ...p, working: false, vol: 0, timestamp: null };
   });
 
-  // Apply entries for the chosen date (keep latest timestamp per player)
   allEntryLines.forEach(row => {
-    const cols = row.split(',');
-    const timestamp  = cols[0]?.trim();
-    const entryDate  = cols[1]?.trim();
-    const playerName = cols[2]?.trim();
-    const working    = cols[3]?.trim().toUpperCase() === 'YES';
-    const vol        = Number(cols[4]) || 0;
+    const cols        = row.split(',');
+    const timestamp   = cols[0]?.trim();
+    const entryDate   = cols[1]?.trim();
+    const playerName  = cols[2]?.trim();
+    const working     = cols[3]?.trim().toUpperCase() === 'YES';
+    const vol         = Number(cols[4]) || 0;
 
     if (entryDate !== date) return;
     if (!snapshot[playerName]) return;
@@ -212,7 +223,6 @@ function buildPlayersForDate(date) {
 }
 
 function buildAllDaysData() {
-  // Returns array of { date, players[] } for all available dates
   return allDates.map(date => ({
     date,
     players: buildPlayersForDate(date)
@@ -235,18 +245,18 @@ function getWorkingCount(players, team) {
   return players.filter(p => p.team === team && p.working).length;
 }
 
-// ── RENDER: Standings ─────────────────────────────────────────
-function renderStandings() {
+// ── RENDER: Standings ──────────────────────────────────────────
+function renderStandings(celebrate = false) {
   const players = buildPlayersForDate(selectedDate);
 
   const dateLabel = formatDateLabel(selectedDate) || '—';
-  const standingsDate = document.getElementById('standings-date');
-  if (standingsDate) standingsDate.textContent = 'Date: ' + dateLabel;
+  const el = document.getElementById('standings-date');
+  if (el) el.textContent = 'Date: ' + dateLabel;
   const snapLabel = document.getElementById('snap-date-label');
   if (snapLabel) snapLabel.textContent = 'Date: ' + dateLabel;
 
   const teams = TEAM_ORDER.map(t => ({
-    team: t,
+    team:    t,
     score:   getTeamScore(players, t),
     total:   getTeamTotal(players, t),
     working: getWorkingCount(players, t),
@@ -288,18 +298,22 @@ function renderStandings() {
       </div>`;
     grid.appendChild(card);
   });
+
+  if (celebrate) {
+    celebrateLeader(teams);
+  }
 }
 
-// ── RENDER: Daily Scoreboard ──────────────────────────────────
+// ── RENDER: Daily Scoreboard ───────────────────────────────────
 function renderDaily() {
-  const players = buildPlayersForDate(selectedDate);
+  const players   = buildPlayersForDate(selectedDate);
   const dateLabel = formatDateLabel(selectedDate) || '—';
 
   const lbl = document.getElementById('daily-date-label');
   if (lbl) lbl.textContent = 'Individual performance — ' + dateLabel;
 
   const sorted = [...players].sort((a, b) => (b.vol || 0) - (a.vol || 0));
-  const tbody = document.getElementById('daily-tbody');
+  const tbody  = document.getElementById('daily-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
 
@@ -319,12 +333,10 @@ function renderDaily() {
   });
 }
 
-// ── RENDER: Monthly Scoreboard ────────────────────────────────
+// ── RENDER: Monthly Scoreboard ─────────────────────────────────
 function renderMonthly() {
-  const allDaysData = buildAllDaysData();
-
-  const monthlyView =
-  document.getElementById('monthly-view')?.value || 'players';
+  const allDaysData  = buildAllDaysData();
+  const monthlyView  = document.getElementById('monthly-view')?.value || 'players';
 
   // Aggregate across all days
   const playerMap = {};
@@ -344,10 +356,9 @@ function renderMonthly() {
     });
   });
 
-  const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total);
-  const totalVol    = sorted.reduce((s, p) => s + p.total, 0);
-  const topPlayer   = sorted[0] || {};
- const activeDays = allDaysData.length;
+  const sorted        = Object.values(playerMap).sort((a, b) => b.total - a.total);
+  const totalVol      = sorted.reduce((s, p) => s + p.total, 0);
+  const topPlayer     = sorted[0] || {};
   const activePlayers = sorted.filter(p => p.days > 0).length;
 
   // Stat cards
@@ -381,118 +392,75 @@ function renderMonthly() {
       now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   }
 
-  // Table
- const headerRow =
-  document.querySelector('#monthly-table thead tr');
+  // FIX: safe header + tbody access
+  const table     = document.getElementById('monthly-table');
+  if (!table) return;
+  const headerRow = table.querySelector('thead tr');
+  const tbody     = document.getElementById('monthly-tbody');
+  if (!tbody) return;
 
-const tbody = document.getElementById('monthly-tbody');
-if (!tbody) return;
+  tbody.innerHTML = '';
 
-tbody.innerHTML = '';
+  if (monthlyView === 'players') {
+    if (headerRow) headerRow.innerHTML = `
+      <th>#</th><th>Name</th><th>Team</th>
+      <th>Days Active</th><th>Total Vol</th><th>Avg/Day</th>`;
 
-if (monthlyView === 'players') {
+    sorted.forEach((p, i) => {
+      const avg = p.days ? (p.total / p.days).toFixed(2) : '0.00';
+      const tr  = document.createElement('tr');
+      if (i === 0 && p.total > 0) tr.className = 'rank-1-row';
+      tr.innerHTML = `
+        <td class="rank-col">${i + 1}</td>
+        <td>${p.name}</td>
+        <td>${FLAGS[p.team] || ''} ${p.team}</td>
+        <td>${p.days}</td>
+        <td>${p.total}</td>
+        <td class="pts">${avg}</td>`;
+      tbody.appendChild(tr);
+    });
 
-  headerRow.innerHTML = `
-    <th>#</th>
-    <th>Name</th>
-    <th>Team</th>
-    <th>Days Active</th>
-    <th>Total Vol</th>
-    <th>Avg/Day</th>
-  `;
+  } else {
+    if (headerRow) headerRow.innerHTML = `
+      <th>#</th><th>Team</th><th>Wins</th><th>Total Volume</th>`;
 
-  sorted.forEach((p, i) => {
-    const avg = p.days ? (p.total / p.days).toFixed(2) : '0.00';
-    const tr = document.createElement('tr');
+    const teamStats = {};
+    TEAM_ORDER.forEach(team => {
+      teamStats[team] = { team, wins: 0, totalVolume: 0 };
+    });
 
-    if (i === 0 && p.total > 0)
-      tr.className = 'rank-1-row';
+    allDaysData.forEach(day => {
+      TEAM_ORDER.forEach(team => {
+        teamStats[team].totalVolume += getTeamTotal(day.players, team);
+      });
+      const scores = TEAM_ORDER.map(team => ({
+        team,
+        score: getTeamScore(day.players, team)
+      })).sort((a, b) => b.score - a.score);
+      if (scores[0] && scores[0].score > 0) {
+        teamStats[scores[0].team].wins++;
+      }
+    });
 
-    tr.innerHTML = `
-      <td class="rank-col">${i + 1}</td>
-      <td>${p.name}</td>
-      <td>${FLAGS[p.team] || ''} ${p.team}</td>
-      <td>${p.days}</td>
-      <td>${p.total}</td>
-      <td class="pts">${avg}</td>`;
+    const rankedTeams = Object.values(teamStats)
+      .sort((a, b) => b.wins - a.wins || b.totalVolume - a.totalVolume);
 
-    tbody.appendChild(tr);
-  });
-
-} else {
- headerRow.innerHTML = `
-  <th>#</th>
-  <th>Team</th>
-  <th>Wins</th>
-  <th>Total Volume</th>
-`;
-
-
-// ── TEAM MONTHLY RANKINGS ──
-
-const teamStats = {};
-
-TEAM_ORDER.forEach(team => {
-  teamStats[team] = {
-    team,
-    wins: 0,
-    totalVolume: 0
-  };
-});
-
-// Calculate wins and volume
-allDaysData.forEach(day => {
-
-  // Add team volume
-  TEAM_ORDER.forEach(team => {
-    teamStats[team].totalVolume += getTeamTotal(day.players, team);
-  });
-
-  // Find winner of the day
-  const scores = TEAM_ORDER.map(team => ({
-    team,
-    score: getTeamScore(day.players, team)
-  })).sort((a, b) => b.score - a.score);
-
-  if (scores[0] && scores[0].score > 0) {
-    teamStats[scores[0].team].wins++;
+    rankedTeams.forEach((t, i) => {
+      const tr = document.createElement('tr');
+      if (i === 0) tr.className = 'rank-1-row';
+      tr.innerHTML = `
+        <td class="rank-col">${i + 1}</td>
+        <td>${FLAGS[t.team] || ''} ${t.team}</td>
+        <td class="pts">${t.wins}</td>
+        <td>${t.totalVolume}</td>`;
+      tbody.appendChild(tr);
+    });
   }
-});
-
-// Rank by wins first, then volume
-const rankedTeams = Object.values(teamStats)
-  .sort((a, b) =>
-    b.wins - a.wins ||
-    b.totalVolume - a.totalVolume
-  );
-
-// Fill table
-
-const teamTbody = tbody;
-if (teamTbody) {
-  teamTbody.innerHTML = '';
-
-  rankedTeams.forEach((t, i) => {
-    const tr = document.createElement('tr');
-
-    if (i === 0) tr.className = 'rank-1-row';
-
-  tr.innerHTML = `
-  <td class="rank-col">${i + 1}</td>
-  <td>${FLAGS[t.team] || ''} ${t.team}</td>
-  <td class="pts">${t.wins}</td>
-  <td>${t.totalVolume}</td>
-`;
-    teamTbody.appendChild(tr);
-  });
 }
 
-}
-}
-
-// ── RENDER: Man of the Match ──────────────────────────────────
+// ── RENDER: Man of the Match ───────────────────────────────────
 function renderMOTM() {
-  const players = buildPlayersForDate(selectedDate);
+  const players   = buildPlayersForDate(selectedDate);
   const dateLabel = formatDateLabel(selectedDate) || '—';
 
   const lbl = document.getElementById('motm-date-label');
@@ -513,19 +481,22 @@ function renderMOTM() {
         No working players with volume recorded for this date.
       </div>`;
   } else {
-   console.log('MOTM:', top);
+    // FIX: correct img tag — no stray text, use motm-avatar-img class
+    const avatarHtml = top.photo
+      ? `<img
+           src="${top.photo}"
+           alt="${top.name}"
+           class="motm-avatar-img"
+           onerror="this.onerror=null;this.src='images/default-avatar.png';"
+         />`
+      : `<div class="motm-avatar-div">${top.name.charAt(0)}</div>`;
+
     wrap.innerHTML = `
       <div class="motm-card">
         <div style="font-size:12px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">
           &#11088; Man of the Match
         </div>
-        <img
-  src="${top.photo || 'images/default-avatar.png'}"
-  images/default-avatar.png
-  alt="${top.name}"
-  onerror="this.src='images/default-avatar.png'"
-  class="motm-avatar"
-/>
+        ${avatarHtml}
         <div class="motm-name">${top.name}</div>
         <div class="motm-team">${FLAGS[top.team] || ''} ${top.team}</div>
         <div class="star-row">${'<span class="star">&#9733;</span>'.repeat(5)}</div>
@@ -555,25 +526,19 @@ function renderMOTM() {
   });
 }
 
-// ── RENDER: Top Performers ────────────────────────────────────
+// ── RENDER: Top Performers ─────────────────────────────────────
 function renderPerformers() {
   const allDaysData = buildAllDaysData();
 
   const playerMap = {};
   Object.values(allPlayers).forEach(p => {
-   playerMap[p.name] = {
-  name: p.name,
-  team: p.team,
-  photo: p.photo || '',
-  days: 0,
-  total: 0
-};
+    playerMap[p.name] = { name: p.name, team: p.team, photo: p.photo || '', days: 0, total: 0 };
   });
 
   allDaysData.forEach(day => {
     day.players.forEach(p => {
       if (!playerMap[p.name]) {
-        playerMap[p.name] = { name: p.name, team: p.team,photo: p.photo || '', days: 0, total: 0 };
+        playerMap[p.name] = { name: p.name, team: p.team, photo: p.photo || '', days: 0, total: 0 };
       }
       if (p.working) {
         playerMap[p.name].days++;
@@ -582,7 +547,7 @@ function renderPerformers() {
     });
   });
 
-  const sorted  = Object.values(playerMap)
+  const sorted = Object.values(playerMap)
     .filter(p => p.days > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 6);
@@ -601,24 +566,18 @@ function renderPerformers() {
     const pct      = Math.round((p.total / maxVol) * 100);
     const avg      = p.days ? (p.total / p.days).toFixed(2) : '0.00';
     const initials = p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const div      = document.createElement('div');
-    div.className  = 'card';
-    div.innerHTML  = `
+    const avatarHtml = p.photo
+      ? `<img src="${p.photo}" crossorigin="anonymous" alt="${p.name}"
+           onerror="this.onerror=null;this.src='images/default-avatar.png';"
+           style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);flex-shrink:0;">`
+      : `<div style="width:40px;height:40px;border-radius:50%;background:var(--pitch-light);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:16px;color:var(--gold);border:2px solid var(--gold);flex-shrink:0;">${initials}</div>`;
+
+    const div     = document.createElement('div');
+    div.className = 'card';
+    div.style.animationDelay = (i * 0.08) + 's';
+    div.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-       <img
-  src="${p.photo || 'images/default-avatar.png'}"
-  crossorigin="anonymous"
-  alt="${p.name}"
-  onerror="this.src='images/default-avatar.png'"
-  style="
-    width:40px;
-    height:40px;
-    border-radius:50%;
-    object-fit:cover;
-    border:2px solid var(--gold);
-    flex-shrink:0;
-  "
->
+        ${avatarHtml}
         <div style="min-width:0;">
           <div style="font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
           <div style="font-size:11px;color:var(--muted);">${FLAGS[p.team] || ''} ${p.team}</div>
@@ -634,7 +593,7 @@ function renderPerformers() {
   });
 }
 
-// ── RENDER: Match History ─────────────────────────────────────
+// ── RENDER: Match History ──────────────────────────────────────
 function renderHistory() {
   const allDaysData = buildAllDaysData();
   const list = document.getElementById('history-list');
@@ -645,7 +604,7 @@ function renderHistory() {
     list.innerHTML = `
       <div class="history-empty">
         <div style="font-size:32px;margin-bottom:8px;">&#128202;</div>
-        No history yet. Results will appear here as daily data is recorded.
+        No history yet.
       </div>`;
     return;
   }
@@ -661,8 +620,6 @@ function renderHistory() {
     })).sort((a, b) => b.score - a.score);
 
     const winner = scores[0];
-
-    // Find MOTM for this day
     const topPlayer = [...(day.players || [])]
       .filter(p => p.working && p.vol > 0)
       .sort((a, b) => b.vol - a.vol)[0];
@@ -683,15 +640,13 @@ function renderHistory() {
       </div>
       ${winner && winner.score > 0 ? `
         <div style="margin-top:10px;">
-          <span class="history-winner-badge">
-            &#127942; Winner: ${FLAGS[winner.team] || ''} ${winner.team} (${winner.score.toFixed(2)})
-          </span>
+          <span class="history-winner-badge">&#127942; Winner: ${FLAGS[winner.team] || ''} ${winner.team} (${winner.score.toFixed(2)})</span>
         </div>` : ''}`;
     list.appendChild(entry);
   });
 }
 
-// ── Navigation ────────────────────────────────────────────────
+// ── Navigation ─────────────────────────────────────────────────
 function nav(section, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -700,7 +655,7 @@ function nav(section, el) {
   if (sec) sec.classList.add('active');
   if (el) el.classList.add('active');
 
-  if (section === 'standings')  renderStandings();
+  if (section === 'standings')  renderStandings(false);
   if (section === 'daily')      renderDaily();
   if (section === 'monthly')    renderMonthly();
   if (section === 'motm')       renderMOTM();
@@ -708,68 +663,203 @@ function nav(section, el) {
   if (section === 'history')    renderHistory();
 
   if (window.innerWidth < 640) {
-    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar')?.classList.remove('open');
   }
 }
 
-// ── Date change handler ───────────────────────────────────────
+// ── Date change handler ────────────────────────────────────────
 function onDateChange(value) {
   localStorage.setItem('selectedDate', value);
   if (!value) return;
   selectedDate = value;
-  // Re-render whichever section is currently active
   const active = document.querySelector('.section.active');
   if (!active) return;
   const id = active.id.replace('sec-', '');
-  if (id === 'standings')  renderStandings();
+  if (id === 'standings')  renderStandings(false);
   if (id === 'daily')      renderDaily();
   if (id === 'motm')       renderMOTM();
-  // Monthly/performers/history span all dates — no change needed on date switch
 }
 
-// ── Sidebar toggle (mobile) ───────────────────────────────────
+// ── Sidebar toggle ─────────────────────────────────────────────
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar')?.classList.toggle('open');
 }
 
-// ── Download helpers ──────────────────────────────────────────
-function downloadSnapshot() {
+// ── Snapshot helpers ───────────────────────────────────────────
+
+// Freeze CSS animations so html2canvas captures a clean frame
+function freezeAnimations(el) {
+  const all = el.querySelectorAll('*');
+  all.forEach(n => {
+    n.style.setProperty('animation', 'none', 'important');
+    n.style.setProperty('transition', 'none', 'important');
+  });
+}
+function thawAnimations(el) {
+  const all = el.querySelectorAll('*');
+  all.forEach(n => {
+    n.style.removeProperty('animation');
+    n.style.removeProperty('transition');
+  });
+}
+
+// Core capture — returns a canvas promise with correct scroll/offset handling
+function captureElement(el) {
+  const rect = el.getBoundingClientRect();
+  freezeAnimations(el);
+
+  return html2canvas(el, {
+    backgroundColor: '#0f1f16',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    // Fix scroll-offset clipping bug
+    scrollX: -window.scrollX,
+    scrollY: -window.scrollY,
+    // Ensure full element width captured regardless of viewport
+    width:  el.scrollWidth,
+    height: el.scrollHeight,
+    windowWidth:  document.documentElement.scrollWidth,
+    windowHeight: document.documentElement.scrollHeight,
+    x: 0,
+    y: 0,
+    onclone: (cloned) => {
+      // In the cloned doc, remove sidebar margin so cards fill full width
+      const main = cloned.getElementById('main');
+      if (main) { main.style.marginLeft = '0'; main.style.paddingLeft = '24px'; }
+      // Strip all animations in clone too
+      const style = cloned.createElement('style');
+      style.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; }';
+      cloned.head.appendChild(style);
+    }
+  }).finally(() => thawAnimations(el));
+}
+
+// Share blob as file via Web Share API (mobile) or fallback (desktop)
+async function shareOrDownload(blob, filename) {
+  const file = new File([blob], filename, { type: 'image/png' });
+
+  // Mobile: try native share sheet (shares directly to WhatsApp etc)
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: '🏆 Team Champions World Cup',
+        text: 'Latest standings!'
+      });
+      showToast('Shared!');
+      return;
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('Share failed:', e);
+      // Fall through to desktop path
+    }
+  }
+
+  // Desktop fallback: download image + open WhatsApp Web
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Small delay then show WhatsApp modal
+  setTimeout(() => showWAModal(), 800);
+}
+
+// WhatsApp desktop modal — user manually attaches the downloaded image
+function showWAModal() {
+  const existing = document.getElementById('wa-modal');
+  if (existing) { existing.remove(); }
+
+  const modal = document.createElement('div');
+  modal.id = 'wa-modal';
+  modal.style.cssText = `
+    position:fixed; inset:0; z-index:99999;
+    background:rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(4px);
+    animation:fadeInUp 0.25s ease;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#162b1e; border:1px solid rgba(245,200,66,0.3);
+      border-radius:16px; padding:28px 32px; max-width:360px; width:90%;
+      text-align:center; font-family:'DM Sans',sans-serif;
+    ">
+      <div style="font-size:40px; margin-bottom:12px;">📲</div>
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#F5C842; margin-bottom:8px;">
+        Share to WhatsApp
+      </div>
+      <div style="font-size:13px; color:#8aaa95; margin-bottom:20px; line-height:1.6;">
+        Image downloaded! On desktop, WhatsApp can't receive files via link.<br>
+        Open WhatsApp Web and attach the downloaded image manually.
+      </div>
+      <a href="https://web.whatsapp.com/" target="_blank" style="
+        display:inline-flex; align-items:center; gap:8px;
+        background:#25D366; color:#fff;
+        font-weight:600; font-size:14px;
+        padding:10px 22px; border-radius:10px;
+        text-decoration:none; margin-bottom:12px;
+      ">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.549 4.107 1.51 5.84L0 24l6.335-1.483A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.806 9.806 0 01-5.031-1.386l-.361-.214-3.741.876.939-3.634-.235-.373A9.79 9.79 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+        </svg>
+        Open WhatsApp Web
+      </a>
+      <div>
+        <button onclick="document.getElementById('wa-modal').remove()" style="
+          background:transparent; border:1px solid rgba(245,200,66,0.3);
+          color:#F5C842; padding:8px 20px; border-radius:8px;
+          font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif;
+        ">Close</button>
+      </div>
+    </div>`;
+
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+// ── Public download functions ──────────────────────────────────
+
+async function downloadSnapshot() {
+  showToast('Capturing…');
   const target = document.getElementById('snapshot-target');
-  html2canvas(target, {
-  backgroundColor: '#0f1f16',
-  scale: 2,
-  useCORS: true,
-  allowTaint: false
-}).then(canvas => {
-    const link      = document.createElement('a');
-    link.download   = 'standings-' + (selectedDate || today()).replace(/\//g, '-') + '.png';
-    link.href       = canvas.toDataURL('image/png');
-    link.click();
-    showToast('Image downloaded!');
-  });
+  try {
+    const canvas = await captureElement(target);
+    canvas.toBlob(blob => {
+      if (!blob) { showToast('Capture failed'); return; }
+      const fname = 'standings-' + (selectedDate || today()).replace(/\//g, '-') + '.png';
+      shareOrDownload(blob, fname);
+    }, 'image/png');
+  } catch (err) {
+    console.error(err);
+    showToast('Capture failed — check console');
+  }
 }
 
-function downloadSection(sectionId) {
+async function downloadSection(sectionId) {
+  showToast('Capturing…');
   const target = document.getElementById(sectionId);
- html2canvas(target, {
-  backgroundColor: '#0f1f16',
-  scale: 2,
-  useCORS: true,
-  allowTaint: false
-}).then(canvas => {
-    const link      = document.createElement('a');
-    link.download   = sectionId + '-' + today() + '.png';
-    link.href       = canvas.toDataURL('image/png');
-    link.click();
-    showToast('Image downloaded!');
-  });
+  try {
+    const canvas = await captureElement(target);
+    canvas.toBlob(blob => {
+      if (!blob) { showToast('Capture failed'); return; }
+      const fname = sectionId + '-' + today() + '.png';
+      shareOrDownload(blob, fname);
+    }, 'image/png');
+  } catch (err) {
+    console.error(err);
+    showToast('Capture failed — check console');
+  }
 }
 
-// ── Init ──────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────
 async function init() {
-  // Update sidebar date/month display
-  const now  = new Date();
-  const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  // Sidebar date
+  const now     = new Date();
+  const opts    = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
   const sideDate = document.getElementById('side-date');
   if (sideDate) sideDate.textContent = now.toLocaleDateString('en-IN', opts);
   const sideMonth = document.getElementById('side-month');
@@ -782,13 +872,14 @@ async function init() {
     showToast('Could not load data — check network');
   }
 
-  // Render the default active section (standings)
-  renderStandings();
-  renderDaily();
-  renderMonthly();
-  renderMOTM();
-  renderPerformers();
-  renderHistory();
+  // Only render the default active section (standings) — others lazy-render on nav click
+  renderStandings(true); // true = trigger celebration on load
+
+  // Hide loading screen
+  const loadScreen = document.getElementById('loading-screen');
+  if (loadScreen) {
+    setTimeout(() => loadScreen.classList.add('hidden'), 1200);
+  }
 }
 
 // Auto-refresh every 5 minutes

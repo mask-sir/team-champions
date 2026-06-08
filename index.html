@@ -11,6 +11,22 @@
 </head>
 <body>
 
+<!-- FIFA-style Loading Screen -->
+<div id="loading-screen">
+  <div class="load-ball">⚽</div>
+  <div class="load-title">CHAMPIONS WORLD CUP</div>
+  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+</div>
+
+<!-- Confetti canvas -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Goal banner -->
+<div id="goal-banner">
+  <div class="goal-text">⚽ GOAL!</div>
+  <div class="goal-sub" id="goal-banner-sub">Loading...</div>
+</div>
+
 <button id="mobile-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">&#9776;</button>
 
 <div id="sidebar">
@@ -39,7 +55,7 @@
   <!-- STANDINGS -->
   <div id="sec-standings" class="section active">
     <div class="page-header">
-      <h2>Team Standings</h2>
+      <h2>Team Standings <span class="live-badge"><span class="live-dot"></span>LIVE</span></h2>
       <p id="standings-date">Today's live rankings</p>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
@@ -84,23 +100,17 @@
 
   <!-- MONTHLY SCOREBOARD -->
   <div id="sec-monthly" class="section">
-   <div class="page-header">
-  <h2>Monthly Scoreboard</h2>
-  <p id="monthly-label">Cumulative rankings for this month</p>
-</div>
-
-<div style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
-
-  <select id="monthly-view" class="date-selector" onchange="renderMonthly()">
-    <option value="players">Player Rankings</option>
-    <option value="teams">Team Rankings</option>
-  </select>
-
-  <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-monthly')">
-    &#8681; Download as image
-  </button>
-
-</div>
+    <div class="page-header">
+      <h2>Monthly Scoreboard</h2>
+      <p id="monthly-label">Cumulative rankings for this month</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
+      <select id="monthly-view" class="date-selector" onchange="renderMonthly()">
+        <option value="players">Player Rankings</option>
+        <option value="teams">Team Rankings</option>
+      </select>
+      <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-monthly')">&#8681; Download as image</button>
+    </div>
     <div class="grid-4" id="monthly-stat-cards" style="margin-bottom:20px;"></div>
     <div class="card">
       <table class="score-table" id="monthly-table">
@@ -111,8 +121,6 @@
       </table>
     </div>
   </div>
-
- 
 
   <!-- MAN OF THE MATCH -->
   <div id="sec-motm" class="section">
