@@ -8,14 +8,46 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="style.css">
+<!-- Inline favicon — no external file needed -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
 </head>
 <body>
 
-<!-- FIFA-style Loading Screen -->
+<!-- Cinematic Loading Screen -->
 <div id="loading-screen">
-  <div class="load-ball">⚽</div>
-  <div class="load-title">CHAMPIONS WORLD CUP</div>
-  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+  <!-- Animated pitch lines -->
+  <div class="ls-pitch">
+    <div class="ls-pitch-line ls-center-circle"></div>
+    <div class="ls-pitch-line ls-halfway"></div>
+    <div class="ls-pitch-line ls-box-left"></div>
+    <div class="ls-pitch-line ls-box-right"></div>
+  </div>
+
+  <!-- Spotlight beams -->
+  <div class="ls-spotlight ls-spot-1"></div>
+  <div class="ls-spotlight ls-spot-2"></div>
+  <div class="ls-spotlight ls-spot-3"></div>
+  <div class="ls-spotlight ls-spot-4"></div>
+
+  <!-- Content -->
+  <div class="ls-content">
+    <div class="ls-trophy-wrap">
+      <div class="ls-trophy">&#127942;</div>
+      <div class="ls-trophy-glow"></div>
+    </div>
+    <div class="ls-title-wrap">
+      <div class="ls-title-line1">TEAM</div>
+      <div class="ls-title-line2">CHAMPIONS</div>
+      <div class="ls-title-line3">WORLD CUP</div>
+    </div>
+    <div class="ls-bar-wrap">
+      <div class="ls-bar"><div class="ls-bar-fill"></div></div>
+      <div class="ls-bar-label">Loading match data...</div>
+    </div>
+    <div class="ls-teams">
+      <span>🇦🇷</span><span>🇵🇹</span><span>🇧🇷</span><span>🇪🇸</span>
+    </div>
+  </div>
 </div>
 
 <!-- Confetti canvas -->
@@ -60,12 +92,19 @@
       <p id="standings-date">Today's live rankings</p>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
-      <div class="date-selector-wrap">
-        <span class="date-selector-icon">&#128197;</span>
-        <select id="date-select" class="date-selector" onchange="onDateChange(this.value)">
-          <option value="">Loading dates…</option>
-        </select>
+      <!-- Custom animated date picker (replaces native select) -->
+      <div class="custom-select-wrap" id="date-picker-wrap">
+        <div class="custom-select-trigger" id="date-trigger" onclick="toggleDatePicker(event)">
+          <span class="date-selector-icon">&#128197;</span>
+          <span id="date-trigger-text">Loading dates…</span>
+          <span class="custom-select-arrow" id="date-arrow">&#9660;</span>
+        </div>
+        <div class="custom-select-dropdown" id="date-dropdown">
+          <div class="custom-select-list" id="date-list"></div>
+        </div>
       </div>
+      <!-- Hidden native select kept for JS compatibility -->
+      <select id="date-select" style="display:none"></select>
       <button class="dl-btn" onclick="downloadSnapshot()">&#8681; 📤 Share to WhatsApp</button>
     </div>
     <div id="snapshot-target">
@@ -106,7 +145,18 @@
       <p id="monthly-label">Cumulative rankings for this month</p>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
-      <select id="monthly-view" class="date-selector" onchange="renderMonthly()">
+      <!-- Custom animated monthly view picker -->
+      <div class="custom-select-wrap" id="monthly-picker-wrap" style="min-width:180px;">
+        <div class="custom-select-trigger" id="monthly-trigger" onclick="toggleMonthlyPicker(event)">
+          <span class="date-selector-icon">&#128202;</span>
+          <span id="monthly-trigger-text">Player Rankings</span>
+          <span class="custom-select-arrow">&#9660;</span>
+        </div>
+        <div class="custom-select-dropdown" id="monthly-dropdown">
+          <div class="custom-select-list" id="monthly-list"></div>
+        </div>
+      </div>
+      <select id="monthly-view" style="display:none">
         <option value="players">Player Rankings</option>
         <option value="teams">Team Rankings</option>
       </select>

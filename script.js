@@ -167,7 +167,7 @@ async function getLiveData() {
     return db - da;
   });
 
-  // Populate date selector
+  // Populate hidden native select (kept for compat)
   const dateSelect = document.getElementById('date-select');
   if (dateSelect) {
     dateSelect.innerHTML = '';
@@ -190,6 +190,9 @@ async function getLiveData() {
   if (dateSelect && selectedDate) {
     dateSelect.value = selectedDate;
   }
+
+  // Populate custom animated picker
+  buildCustomDatePicker(allDates, selectedDate);
 
   return buildPlayersForDate(selectedDate);
 }
@@ -849,11 +852,212 @@ function nav(section, el) {
   }
 }
 
+// ── Custom animated date picker ───────────────────────────────
+let _pickerOpen = false;
+let _pickerOpenTime = 0;
+
+function buildCustomDatePicker(dates, currentDate) {
+  const list = document.getElementById('date-list');
+  const triggerText = document.getElementById('date-trigger-text');
+  if (!list) return;
+  list.innerHTML = '';
+  dates.forEach(date => {
+    const item = document.createElement('div');
+    item.className = 'custom-option' + (date === currentDate ? ' selected' : '');
+    item.dataset.value = date;
+    item.textContent = formatDateLabel(date);
+    item.onclick = (e) => { e.stopPropagation(); pickDate(date); };
+    list.appendChild(item);
+  });
+  if (currentDate && triggerText) triggerText.textContent = formatDateLabel(currentDate);
+}
+
+function toggleDatePicker(e) {
+  if (e) e.stopPropagation();
+  _pickerOpen ? closeDatePicker() : openDatePicker();
+}
+
+function openDatePicker() {
+  const wrap = document.getElementById('date-picker-wrap');
+  if (!wrap) return;
+  _pickerOpen = true;
+  _pickerOpenTime = Date.now();
+  wrap.classList.add('open');
+
+  // Staggered slide-in for options
+  const options = wrap.querySelectorAll('.custom-option');
+  options.forEach((opt, i) => {
+    opt.classList.remove('option-visible');
+    opt.style.animationDelay = (i * 0.04) + 's';
+  });
+  // Trigger reflow then add class
+  requestAnimationFrame(() => {
+    options.forEach(opt => opt.classList.add('option-visible'));
+  });
+
+  // Scroll selected into view
+  const selected = wrap.querySelector('.custom-option.selected');
+  if (selected) setTimeout(() => selected.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 200);
+
+  // Outside click to close — ignore if fired within 150ms of opening (same click)
+  document.addEventListener('click', _outsideClick);
+}
+
+function closeDatePicker() {
+  const wrap = document.getElementById('date-picker-wrap');
+  if (!wrap) return;
+  _pickerOpen = false;
+  wrap.classList.remove('open');
+  document.removeEventListener('click', _outsideClick);
+}
+
+function _outsideClick(e) {
+  if (Date.now() - _pickerOpenTime < 150) return; // same click that opened it
+  const wrap = document.getElementById('date-picker-wrap');
+  if (!wrap || !wrap.contains(e.target)) closeDatePicker();
+}
+
+function pickDate(value) {
+  closeDatePicker();
+
+  // Animate trigger label
+  const triggerText = document.getElementById('date-trigger-text');
+  if (triggerText) {
+    triggerText.style.animation = 'none';
+    void triggerText.offsetWidth;
+    triggerText.style.animation = 'dateTextSlide 0.3s ease forwards';
+    triggerText.textContent = formatDateLabel(value);
+    setTimeout(() => { triggerText.style.animation = ''; }, 400);
+  }
+
+  // Mark selected option
+  document.querySelectorAll('.custom-option').forEach(opt =>
+    opt.classList.toggle('selected', opt.dataset.value === value)
+  );
+
+  // Gold flash on trigger
+  const trigger = document.getElementById('date-trigger');
+  if (trigger) {
+    trigger.classList.remove('date-changed');
+    void trigger.offsetWidth;
+    trigger.classList.add('date-changed');
+    setTimeout(() => trigger.classList.remove('date-changed'), 600);
+  }
+
+  onDateChange(value);
+}
+
+// ── Monthly view picker ───────────────────────────────────────
+let _monthlyPickerOpen = false;
+let _monthlyPickerOpenTime = 0;
+
+const MONTHLY_OPTIONS = [
+  { value: 'players', label: '👤 Player Rankings' },
+  { value: 'teams',   label: '🏆 Team Rankings'   },
+];
+
+function initMonthlyPicker() {
+  const list = document.getElementById('monthly-list');
+  if (!list || list.dataset.built) return;
+  list.dataset.built = '1';
+  MONTHLY_OPTIONS.forEach(opt => {
+    const item = document.createElement('div');
+    item.className = 'custom-option' + (opt.value === 'players' ? ' selected' : '');
+    item.dataset.value = opt.value;
+    item.textContent = opt.label;
+    item.onclick = (e) => { e.stopPropagation(); pickMonthlyView(opt.value, opt.label); };
+    list.appendChild(item);
+  });
+}
+
+function toggleMonthlyPicker(e) {
+  if (e) e.stopPropagation();
+  _monthlyPickerOpen ? closeMonthlyPicker() : openMonthlyPicker();
+}
+
+function openMonthlyPicker() {
+  initMonthlyPicker();
+  const wrap = document.getElementById('monthly-picker-wrap');
+  if (!wrap) return;
+  _monthlyPickerOpen = true;
+  _monthlyPickerOpenTime = Date.now();
+  wrap.classList.add('open');
+  const options = wrap.querySelectorAll('.custom-option');
+  options.forEach((opt, i) => {
+    opt.classList.remove('option-visible');
+    opt.style.animationDelay = (i * 0.06) + 's';
+  });
+  requestAnimationFrame(() => options.forEach(opt => opt.classList.add('option-visible')));
+  document.addEventListener('click', _monthlyOutsideClick);
+}
+
+function closeMonthlyPicker() {
+  const wrap = document.getElementById('monthly-picker-wrap');
+  if (!wrap) return;
+  _monthlyPickerOpen = false;
+  wrap.classList.remove('open');
+  document.removeEventListener('click', _monthlyOutsideClick);
+}
+
+function _monthlyOutsideClick(e) {
+  if (Date.now() - _monthlyPickerOpenTime < 150) return;
+  const wrap = document.getElementById('monthly-picker-wrap');
+  if (!wrap || !wrap.contains(e.target)) closeMonthlyPicker();
+}
+
+function pickMonthlyView(value, label) {
+  closeMonthlyPicker();
+  const triggerText = document.getElementById('monthly-trigger-text');
+  if (triggerText) {
+    triggerText.style.animation = 'none';
+    void triggerText.offsetWidth;
+    triggerText.style.animation = 'dateTextSlide 0.3s ease forwards';
+    triggerText.textContent = label;
+    setTimeout(() => { triggerText.style.animation = ''; }, 400);
+  }
+  document.querySelectorAll('#monthly-list .custom-option').forEach(opt =>
+    opt.classList.toggle('selected', opt.dataset.value === value)
+  );
+  const trigger = document.getElementById('monthly-trigger');
+  if (trigger) {
+    trigger.classList.remove('date-changed');
+    void trigger.offsetWidth;
+    trigger.classList.add('date-changed');
+    setTimeout(() => trigger.classList.remove('date-changed'), 600);
+  }
+  // Sync hidden select and re-render
+  const sel = document.getElementById('monthly-view');
+  if (sel) sel.value = value;
+  renderMonthly();
+}
+
 // ── Date change handler ────────────────────────────────────────
 function onDateChange(value) {
   localStorage.setItem('selectedDate', value);
   if (!value) return;
   selectedDate = value;
+
+  // Flash animation on the selector wrap
+  const wrap = document.querySelector('.date-selector-wrap');
+  if (wrap) {
+    wrap.classList.remove('date-changed');
+    void wrap.offsetWidth; // force reflow to restart animation
+    wrap.classList.add('date-changed');
+    setTimeout(() => wrap.classList.remove('date-changed'), 600);
+  }
+
+  // Animate the date label in the header
+  const labels = ['standings-date','daily-date-label','motm-date-label'];
+  labels.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = 'dateTextSlide 0.35s ease forwards';
+      setTimeout(() => el.style.animation = '', 400);
+    }
+  });
+
   const active = document.querySelector('.section.active');
   if (!active) return;
   const id = active.id.replace('sec-', '');
@@ -1097,29 +1301,80 @@ async function downloadSection(sectionId) {
 
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
-  // Sidebar date
-  const now     = new Date();
-  const opts    = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  const now      = new Date();
+  const opts     = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
   const sideDate = document.getElementById('side-date');
   if (sideDate) sideDate.textContent = now.toLocaleDateString('en-IN', opts);
   const sideMonth = document.getElementById('side-month');
   if (sideMonth) sideMonth.textContent = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
+  // Detect file:// protocol — Google Sheets CSV fetch will always fail due to CORS
+  if (location.protocol === 'file:') {
+    showFetchError('file-protocol');
+    const loadScreen = document.getElementById('loading-screen');
+    if (loadScreen) loadScreen.classList.add('hidden');
+    return;
+  }
+
   try {
     await getLiveData();
+    renderStandings(true);
   } catch (err) {
     console.error('Failed to load sheet data:', err);
-    showToast('Could not load data — check network');
+    const isOffline = !navigator.onLine || err.message?.includes('fetch');
+    showFetchError(isOffline ? 'offline' : 'unknown');
   }
 
-  // Only render the default active section (standings) — others lazy-render on nav click
-  renderStandings(true); // true = trigger celebration on load
-
-  // Hide loading screen
   const loadScreen = document.getElementById('loading-screen');
   if (loadScreen) {
-    setTimeout(() => loadScreen.classList.add('hidden'), 1200);
+    // 2.4s gives cinematic intro enough time to play fully
+    setTimeout(() => loadScreen.classList.add('hidden'), 2400);
   }
+}
+
+function showFetchError(type) {
+  const msgs = {
+    'file-protocol': {
+      icon: '🗂️',
+      title: 'Open via a local server',
+      body: `You're running from <code>file://</code> — browsers block Google Sheets fetch on file:// due to CORS.<br><br>
+             <b>Fix:</b> Run a local server in this folder:<br>
+             <code style="display:block;margin-top:8px;padding:8px;background:#0a1810;border-radius:6px;">
+               python -m http.server 8080
+             </code>
+             Then open <code>http://localhost:8080</code> in your browser.`
+    },
+    'offline': {
+      icon: '📡',
+      title: 'No internet connection',
+      body: `Can't reach Google Sheets. Check your connection and <a href="javascript:location.reload()" style="color:var(--gold)">reload</a>.`
+    },
+    'unknown': {
+      icon: '⚠️',
+      title: 'Could not load data',
+      body: `Google Sheets fetch failed. Make sure your CSV URLs are published publicly.<br><br>
+             <a href="javascript:location.reload()" style="color:var(--gold)">Try reloading</a>`
+    }
+  };
+
+  const m = msgs[type] || msgs['unknown'];
+  const grid = document.getElementById('team-cards-grid');
+  if (grid) {
+    grid.style.gridColumn = '1 / -1';
+    grid.innerHTML = `
+      <div style="
+        background:var(--card); border:1px solid rgba(224,85,85,0.3);
+        border-radius:14px; padding:32px; text-align:center;
+        grid-column:1/-1;
+      ">
+        <div style="font-size:40px;margin-bottom:12px;">${m.icon}</div>
+        <div style="font-family:var(--font-display);font-size:22px;color:#e05555;margin-bottom:12px;">${m.title}</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.8;max-width:480px;margin:0 auto;">${m.body}</div>
+      </div>`;
+  }
+
+  const loadScreen = document.getElementById('loading-screen');
+  if (loadScreen) loadScreen.classList.add('hidden');
 }
 
 // Auto-refresh every 5 minutes
