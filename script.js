@@ -423,9 +423,13 @@ function renderMonthly() {
       tbody.appendChild(tr);
     });
 
-  } else {
+  } else if (monthlyView === 'teams') {
     if (headerRow) headerRow.innerHTML = `
-      <th>#</th><th>Team</th><th>Wins</th><th>Total Volume</th>`;
+  <th>#</th>
+  <th>Team</th>
+  <th>Total Points</th>
+  <th>Total Volume</th>
+`;
 
     const teamStats = {};
     TEAM_ORDER.forEach(team => {
@@ -458,7 +462,65 @@ function renderMonthly() {
         <td>${t.totalVolume}</td>`;
       tbody.appendChild(tr);
     });
-  }
+  } else if (monthlyView === 'team-points') {
+
+  if (headerRow) headerRow.innerHTML = `
+    <th>#</th>
+    <th>Team</th>
+    <th>Total Volume</th>
+    <th>Points</th>
+  `;
+
+ const teamStats = {};
+
+TEAM_ORDER.forEach(team => {
+  teamStats[team] = {
+    team,
+    points: 0,
+    totalVolume: 0
+  };
+});
+
+allDaysData.forEach(day => {
+
+  TEAM_ORDER.forEach(team => {
+
+    // Daily point (same value shown on Team Standings)
+    const dailyPoint = getTeamScore(day.players, team);
+
+    // Add daily point to monthly total
+    teamStats[team].points += dailyPoint;
+
+    // Add volume
+    teamStats[team].totalVolume +=
+      getTeamTotal(day.players, team);
+
+  });
+
+});
+
+const rankedTeams = Object.values(teamStats)
+  .sort((a, b) =>
+    b.points - a.points ||
+    b.totalVolume - a.totalVolume
+  );
+
+  rankedTeams.forEach((t, i) => {
+    const tr = document.createElement('tr');
+
+    if (i === 0)
+      tr.className = 'rank-1-row';
+
+    tr.innerHTML = `
+      <td class="rank-col">${i + 1}</td>
+      <td>${FLAGS[t.team] || ''} ${t.team}</td>
+      <td>${t.totalVolume}</td>
+      <td class="pts">${t.points.toFixed(2)}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
 }
 
 // ── RENDER: Man of the Match ───────────────────────────────────
@@ -954,6 +1016,10 @@ let _monthlyPickerOpenTime = 0;
 const MONTHLY_OPTIONS = [
   { value: 'players', label: '👤 Player Rankings' },
   { value: 'teams',   label: '🏆 Team Rankings'   },
+  {
+  value: 'team-points',
+  label: 'Point-wise Team Ranking'
+}
 ];
 
 function initMonthlyPicker() {
