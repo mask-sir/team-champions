@@ -1206,10 +1206,16 @@ body::before {
 
 /* ── PLAYER VS PLAYER ── */
 .pvp-picker-row {
-  display: flex; align-items: flex-end; gap: 24px;
+  display: flex; align-items: flex-start; gap: 24px;
   margin-bottom: 32px; flex-wrap: wrap;
 }
-.pvp-player-pick { display: flex; flex-direction: column; gap: 8px; }
+.pvp-player-pick {
+  display: flex; flex-direction: column; gap: 8px;
+  /* own stacking context so dropdown never bleeds into sibling */
+  position: relative; z-index: 10;
+}
+/* bump second picker above first when stacked on mobile */
+.pvp-player-pick:nth-child(3) { z-index: 11; }
 
 .pvp-matchup-header {
   display: grid; grid-template-columns: 1fr auto 1fr;
@@ -1303,6 +1309,12 @@ body::before {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .h2h-stat-row { grid-template-columns: 60px 1fr 60px; gap: 8px; }
   .h2h-day-row  { grid-template-columns: 100px 1fr 50px 1fr; }
+  /* PvP on mobile: limit dropdown height so B picker stays reachable */
+  .pvp-player-pick { width: 100%; }
+  #pvp-picker-a .custom-select-dropdown,
+  #pvp-picker-b .custom-select-dropdown { max-height: 180px !important; }
+  #pvp-picker-a .custom-select-list,
+  #pvp-picker-b .custom-select-list { max-height: 180px; }
 }
 @media (max-width: 640px) {
   #sidebar { transform: translateX(-100%); transition: transform 0.25s; }

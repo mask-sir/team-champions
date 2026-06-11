@@ -18,6 +18,7 @@ const FLAGS = {
   SPAIN:     '&#127466;&#127480;'
 };
 const TEAM_ORDER = ['ARGENTINA', 'PORTUGAL', 'BRAZIL', 'SPAIN'];
+window.TEAM_ORDER_REF = TEAM_ORDER;
 
 // ── State ──────────────────────────────────────────────────────
 let selectedDate  = null;
@@ -959,16 +960,22 @@ function togglePvPPicker(side, e) {
   _pvpPickerOpen[side] ? closePvPPicker(side) : openPvPPicker(side);
 }
 
+// Named handlers so we can removeEventListener properly
+const _pvpOutsideHandlers = { a: null, b: null };
+
 function openPvPPicker(side) {
-  // Close other side if open
-  const other = side === 'a' ? 'b' : 'a';
-  if (_pvpPickerOpen[other]) closePvPPicker(other);
+  // Always close both first — prevents overlap confusion on mobile
+  closePvPPicker('a');
+  closePvPPicker('b');
 
   const wrap = document.getElementById('pvp-picker-' + side);
   if (!wrap) return;
   _pvpPickerOpen[side] = true;
   _pvpPickerTime[side] = Date.now();
   wrap.classList.add('open');
+
+  // Scroll wrap into view on mobile so dropdown is visible
+  setTimeout(() => wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
 
   const opts = wrap.querySelectorAll('.custom-option');
   opts.forEach((o, i) => {
@@ -977,7 +984,9 @@ function openPvPPicker(side) {
   });
   requestAnimationFrame(() => opts.forEach(o => o.classList.add('option-visible')));
 
-  document.addEventListener('click', (e) => _pvpOutside(side, e));
+  // Named handler so it can be removed
+  _pvpOutsideHandlers[side] = (e) => _pvpOutside(side, e);
+  document.addEventListener('click', _pvpOutsideHandlers[side]);
 }
 
 function closePvPPicker(side) {
@@ -985,6 +994,10 @@ function closePvPPicker(side) {
   if (!wrap) return;
   _pvpPickerOpen[side] = false;
   wrap.classList.remove('open');
+  if (_pvpOutsideHandlers[side]) {
+    document.removeEventListener('click', _pvpOutsideHandlers[side]);
+    _pvpOutsideHandlers[side] = null;
+  }
 }
 
 function _pvpOutside(side, e) {
@@ -1708,7 +1721,104 @@ function showFetchError(type) {
   if (loadScreen) loadScreen.classList.add('hidden');
 }
 
-// Auto-refresh every 5 minutes
-setInterval(() => location.reload(), 5 * 60 * 1000);
+// ── LIVE AUTO-REFRESH ────────────────────────────────────────
+let _lastScoreHash = '';
+let _lastTopPlayer = '';
+let _lastLeader = '';
+let _notifGranted = false;
+
+function scoreHash(players) {
+  const ranked = (players || [])
+    .filter(p => p.working)
+    .map(p => p.name + ':' + p.vol)
+    .sort().join('|');
+  return ranked;
+}
+
+function teamLeader(players) {
+  return [...(window.TEAM_ORDER_REF || ['ARGENTINA','PORTUGAL','BRAZIL','SPAIN'])]
+    .map(t => ({ t, s: getTeamScore(players, t) }))
+    .sort((a, b) => b.s - a.s)[0]?.t || '';
+}
+
+function topPlayer(players) {
+  return [...players].filter(p => p.working && p.vol > 0)
+    .sort((a, b) => b.vol - a.vol)[0] || null;
+}
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { _notifGranted = true; return; }
+  if (Notification.permission !== 'denied') {
+    const p = await Notification.requestPermission();
+    _notifGranted = p === 'granted';
+  }
+}
+
+function pushNotif(title, body, icon = '🏆') {
+  // Always show in-app toast
+  showToast(title);
+  if (!_notifGranted || document.visibilityState === 'visible') return;
+  try {
+    new Notification(title, { body, icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>' + icon + '</text></svg>' });
+  } catch(e) {}
+}
+
+async function silentRefresh() {
+  if (location.protocol === 'file:') return;
+  try {
+    await getLiveData();
+    const players = buildPlayersForDate(selectedDate);
+    const hash    = scoreHash(players);
+    const leader  = teamLeader(players);
+    const top     = topPlayer(players);
+
+    // New data arrived
+    if (hash && hash !== _lastScoreHash) {
+      const isFirst = _lastScoreHash === '';
+
+      // Leader changed
+      if (!isFirst && leader && leader !== _lastLeader) {
+        pushNotif(`🏆 ${leader} takes the lead!`, `Rankings updated — ${leader} is now #1`, '🏆');
+        showGoalBanner(leader);
+        launchConfetti(3000);
+      }
+
+      // Top player changed or big vol
+      if (!isFirst && top && top.name !== _lastTopPlayer) {
+        pushNotif(`🔥 ${top.name} is on fire!`, `${top.name} leads with ${top.vol} FTD vol today`, '⚽');
+      }
+
+      // Re-render active section silently
+      const active = document.querySelector('.section.active');
+      if (active) {
+        const id = active.id.replace('sec-', '');
+        if (id === 'standings')  renderStandings(false);
+        if (id === 'daily')      renderDaily();
+        if (id === 'motm')       renderMOTM();
+        if (id === 'monthly')    renderMonthly();
+        if (id === 'performers') renderPerformers();
+        if (id === 'history')    renderHistory();
+      }
+
+      // Update live indicator
+      const liveLabel = document.getElementById('standings-date');
+      if (liveLabel) {
+        const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        liveLabel.textContent = 'Last updated: ' + t;
+      }
+
+      _lastScoreHash  = hash;
+      _lastLeader     = leader;
+      _lastTopPlayer  = top?.name || '';
+    }
+  } catch(e) {
+    console.warn('Silent refresh failed:', e);
+  }
+}
+
+// Kick off
+requestNotifPermission();
+setInterval(silentRefresh, 60 * 1000); // every 60s, no page reload
 
 init();
