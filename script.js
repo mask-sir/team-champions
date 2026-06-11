@@ -893,6 +893,270 @@ function drawH2HResult(allDaysData) {
     </div>`;
 }
 
+// ── Player vs Player ─────────────────────────────────────────
+let pvpPlayerA = null;
+let pvpPlayerB = null;
+let _pvpPickerOpen = { a: false, b: false };
+let _pvpPickerTime = { a: 0, b: 0 };
+
+function renderPvP() {
+  buildPvPPickers();
+  if (!pvpPlayerA || !pvpPlayerB) drawPvPResult();
+}
+
+function buildPvPPickers() {
+  ['a','b'].forEach(side => {
+    const list = document.getElementById('pvp-list-' + side);
+    if (!list || list.dataset.built) return;
+    list.dataset.built = '1';
+
+    // Group by team
+    const byTeam = {};
+    Object.values(allPlayers).forEach(p => {
+      if (!byTeam[p.team]) byTeam[p.team] = [];
+      byTeam[p.team].push(p.name);
+    });
+
+    Object.keys(byTeam).sort().forEach(team => {
+      // Team header
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:6px 16px 2px;font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;';
+      header.textContent = team;
+      list.appendChild(header);
+
+      byTeam[team].sort().forEach(name => {
+        const p = allPlayers[name] || {};
+        const item = document.createElement('div');
+        item.className = 'custom-option';
+        item.dataset.value = name;
+        item.style.display = 'flex';
+        item.style.alignItems = 'center';
+        item.style.gap = '8px';
+        if (p.photo) {
+          const img = document.createElement('img');
+          img.src = p.photo;
+          img.style.cssText = 'width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--card-border);';
+          img.onerror = () => img.remove();
+          item.appendChild(img);
+        } else {
+          const av = document.createElement('div');
+          av.style.cssText = 'width:24px;height:24px;border-radius:50%;background:var(--pitch-light);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--gold);flex-shrink:0;';
+          av.textContent = name.charAt(0).toUpperCase();
+          item.appendChild(av);
+        }
+        const label = document.createElement('span');
+        label.textContent = name;
+        item.appendChild(label);
+        item.onclick = (e) => { e.stopPropagation(); pickPvPPlayer(side, name); };
+        list.appendChild(item);
+      });
+    });
+  });
+}
+
+function togglePvPPicker(side, e) {
+  if (e) e.stopPropagation();
+  _pvpPickerOpen[side] ? closePvPPicker(side) : openPvPPicker(side);
+}
+
+function openPvPPicker(side) {
+  // Close other side if open
+  const other = side === 'a' ? 'b' : 'a';
+  if (_pvpPickerOpen[other]) closePvPPicker(other);
+
+  const wrap = document.getElementById('pvp-picker-' + side);
+  if (!wrap) return;
+  _pvpPickerOpen[side] = true;
+  _pvpPickerTime[side] = Date.now();
+  wrap.classList.add('open');
+
+  const opts = wrap.querySelectorAll('.custom-option');
+  opts.forEach((o, i) => {
+    o.classList.remove('option-visible');
+    o.style.animationDelay = (i * 0.025) + 's';
+  });
+  requestAnimationFrame(() => opts.forEach(o => o.classList.add('option-visible')));
+
+  document.addEventListener('click', (e) => _pvpOutside(side, e));
+}
+
+function closePvPPicker(side) {
+  const wrap = document.getElementById('pvp-picker-' + side);
+  if (!wrap) return;
+  _pvpPickerOpen[side] = false;
+  wrap.classList.remove('open');
+}
+
+function _pvpOutside(side, e) {
+  if (Date.now() - _pvpPickerTime[side] < 150) return;
+  const wrap = document.getElementById('pvp-picker-' + side);
+  if (!wrap || !wrap.contains(e.target)) closePvPPicker(side);
+}
+
+function pickPvPPlayer(side, name) {
+  closePvPPicker(side);
+  if (side === 'a') pvpPlayerA = name;
+  else              pvpPlayerB = name;
+
+  const triggerText = document.getElementById('pvp-trigger-text-' + side);
+  if (triggerText) {
+    triggerText.style.animation = 'none';
+    void triggerText.offsetWidth;
+    triggerText.style.animation = 'dateTextSlide 0.3s ease forwards';
+    triggerText.textContent = name;
+    setTimeout(() => { triggerText.style.animation = ''; }, 400);
+  }
+
+  // Mark selected
+  document.querySelectorAll(`#pvp-list-${side} .custom-option`).forEach(o =>
+    o.classList.toggle('selected', o.dataset.value === name)
+  );
+
+  drawPvPResult();
+}
+
+function drawPvPResult() {
+  const result = document.getElementById('pvp-result');
+  if (!result) return;
+
+  if (!pvpPlayerA || !pvpPlayerB) {
+    result.innerHTML = `<div class="h2h-empty">Select two players to compare.</div>`;
+    return;
+  }
+  if (pvpPlayerA === pvpPlayerB) {
+    result.innerHTML = `<div class="h2h-empty">Select two different players.</div>`;
+    return;
+  }
+
+  const allDays = buildAllDaysData();
+  const pA = allPlayers[pvpPlayerA] || {};
+  const pB = allPlayers[pvpPlayerB] || {};
+
+  let winsA = 0, winsB = 0, draws = 0;
+  let totalA = 0, totalB = 0;
+  let bestA = 0, bestB = 0;
+  let streakA = 0, streakB = 0, curStreakA = 0, curStreakB = 0;
+
+  const days = [];
+  allDays.forEach(day => {
+    const pa = day.players.find(p => p.name === pvpPlayerA);
+    const pb = day.players.find(p => p.name === pvpPlayerB);
+    if (!pa || !pb) return;
+    if (!pa.working && !pb.working) return;
+
+    const va = pa.working ? (pa.vol || 0) : 0;
+    const vb = pb.working ? (pb.vol || 0) : 0;
+    if (va === 0 && vb === 0) return;
+
+    days.push({ date: day.date, va, vb });
+    totalA += va; totalB += vb;
+    if (va > bestA) bestA = va;
+    if (vb > bestB) bestB = vb;
+
+    if (va > vb)      { winsA++; streakA++; streakB = 0; }
+    else if (vb > va) { winsB++; streakB++; streakA = 0; }
+    else              { draws++;  streakA = 0; streakB = 0; }
+    curStreakA = streakA; curStreakB = streakB;
+  });
+
+  if (days.length === 0) {
+    result.innerHTML = `<div class="h2h-empty">No shared active days found between these players.</div>`;
+    return;
+  }
+
+  const played = days.length;
+  const avgA = (totalA / played).toFixed(2);
+  const avgB = (totalB / played).toFixed(2);
+
+  function barWidths(a, b) {
+    const max = Math.max(a, b, 0.01);
+    return { wA: Math.round(a/max*100), wB: Math.round(b/max*100) };
+  }
+
+  function statRow(label, rawA, rawB, dispA, dispB) {
+    const { wA, wB } = barWidths(rawA, rawB);
+    const aW = rawA > rawB, bW = rawB > rawA;
+    return `
+      <div class="pvp-stat-row">
+        <div class="pvp-val-a ${aW?'winner':''}">${dispA}</div>
+        <div>
+          <div class="pvp-stat-label">${label}</div>
+          <div style="display:flex;gap:4px;margin-top:6px;">
+            <div style="flex:1;"><div class="h2h-bar-wrap"><div class="h2h-bar-a" style="width:${wA}%"></div></div></div>
+            <div style="flex:1;"><div class="h2h-bar-wrap"><div class="h2h-bar-b" style="width:${wB}%"></div></div></div>
+          </div>
+        </div>
+        <div class="pvp-val-b ${bW?'winner':''}">${dispB}</div>
+      </div>`;
+  }
+
+  const initA = pvpPlayerA.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const initB = pvpPlayerB.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+  // Photo-aware avatars
+  const avatarA = pA.photo
+    ? `<img src="${pA.photo}" alt="${pvpPlayerA}" class="pvp-avatar-img" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+       <div class="pvp-avatar" style="display:none">${initA}</div>`
+    : `<div class="pvp-avatar">${initA}</div>`;
+
+  const avatarB = pB.photo
+    ? `<img src="${pB.photo}" alt="${pvpPlayerB}" class="pvp-avatar-img pvp-avatar-b" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+       <div class="pvp-avatar" style="display:none;border-color:var(--accent);color:var(--accent)">${initB}</div>`
+    : `<div class="pvp-avatar" style="border-color:var(--accent);color:var(--accent)">${initB}</div>`;
+
+  const dayRows = [...days].reverse().map(d => {
+    let cls = 'pvp-draw', lbl = 'Draw';
+    if (d.va > d.vb) { cls = 'pvp-win-a'; lbl = '🏆'; }
+    if (d.vb > d.va) { cls = 'pvp-win-b'; lbl = '🏆'; }
+    return `
+      <div class="pvp-day-row">
+        <div class="pvp-day-date">${formatDateLabel(d.date)}</div>
+        <div class="pvp-day-vol-a">${d.va}</div>
+        <div class="pvp-day-winner ${cls}">${lbl}</div>
+        <div class="pvp-day-vol-b">${d.vb}</div>
+      </div>`;
+  }).join('');
+
+  result.innerHTML = `
+    <div class="pvp-matchup-header">
+      <div class="pvp-player-side">
+        ${avatarA}
+        <div class="pvp-player-name">${pvpPlayerA}</div>
+        <div class="pvp-player-team">${FLAGS[pA.team]||''} ${pA.team||''}</div>
+        <div class="pvp-record">${winsA}W · ${draws}D · ${winsB}L</div>
+      </div>
+      <div class="pvp-score-center">
+        <div class="pvp-score-display">${winsA} — ${winsB}</div>
+        <div class="pvp-score-label">Days won over ${played} days</div>
+      </div>
+      <div class="pvp-player-side">
+        ${avatarB}
+        <div class="pvp-player-name">${pvpPlayerB}</div>
+        <div class="pvp-player-team">${FLAGS[pB.team]||''} ${pB.team||''}</div>
+        <div class="pvp-record">${winsB}W · ${draws}D · ${winsA}L</div>
+      </div>
+    </div>
+
+    <div class="pvp-stats-grid">
+      ${statRow('Avg Vol / Day',    +avgA,   +avgB,   avgA,  avgB)}
+      ${statRow('Total Volume',     totalA,  totalB,  totalA, totalB)}
+      ${statRow('Best Day',         bestA,   bestB,   bestA,  bestB)}
+      ${statRow('Days Won',         winsA,   winsB,   winsA,  winsB)}
+      ${statRow('Win Streak Now',   curStreakA, curStreakB,
+                curStreakA > 0 ? '🔥'+curStreakA : curStreakA,
+                curStreakB > 0 ? '🔥'+curStreakB : curStreakB)}
+    </div>
+
+    <div class="pvp-days-section">
+      <div class="h2h-days-header">
+        <span style="flex:1;text-align:right;color:var(--gold);">${pvpPlayerA}</span>
+        <span style="width:80px;text-align:center;">Daily</span>
+        <span style="flex:1;text-align:left;color:var(--accent);">${pvpPlayerB}</span>
+      </div>
+      ${dayRows}
+    </div>`;
+}
+
 function nav(section, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -908,6 +1172,7 @@ function nav(section, el) {
   if (section === 'performers') renderPerformers();
   if (section === 'history')    renderHistory();
   if (section === 'h2h')        renderH2H();
+  if (section === 'pvp')        renderPvP();
 
   if (window.innerWidth < 640) {
     document.getElementById('sidebar')?.classList.remove('open');

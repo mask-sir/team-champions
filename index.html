@@ -81,6 +81,9 @@
   <div class="nav-section">Records</div>
   <div class="nav-item" onclick="nav('history', this)"><span class="icon">&#128196;</span> Match history</div>
   <div class="nav-item" onclick="nav('h2h', this)"><span class="icon">&#9876;&#65039;</span> Head to Head</div>
+  <div class="nav-item" onclick="nav('pvp', this)">
+  🥊 Player vs Player
+</div>
 </div>
 
 <div id="main">
@@ -242,6 +245,40 @@
 
     <!-- Result area -->
     <div id="h2h-result"></div>
+  </div>
+
+  <!-- PLAYER VS PLAYER -->
+  <div id="sec-pvp" class="section">
+    <div class="page-header">
+      <h2>Player vs Player</h2>
+      <p>Head-to-head individual comparison</p>
+    </div>
+    <div class="pvp-picker-row">
+      <div class="pvp-player-pick">
+        <div class="h2h-pick-label">Player A</div>
+        <div class="custom-select-wrap" id="pvp-picker-a" style="min-width:200px;">
+          <div class="custom-select-trigger" id="pvp-trigger-a" onclick="togglePvPPicker('a',event)">
+            <span class="date-selector-icon">👤</span>
+            <span id="pvp-trigger-text-a">Select player</span>
+            <span class="custom-select-arrow">&#9660;</span>
+          </div>
+          <div class="custom-select-dropdown"><div class="custom-select-list" id="pvp-list-a"></div></div>
+        </div>
+      </div>
+      <div class="h2h-vs-badge">VS</div>
+      <div class="pvp-player-pick">
+        <div class="h2h-pick-label">Player B</div>
+        <div class="custom-select-wrap" id="pvp-picker-b" style="min-width:200px;">
+          <div class="custom-select-trigger" id="pvp-trigger-b" onclick="togglePvPPicker('b',event)">
+            <span class="date-selector-icon">👤</span>
+            <span id="pvp-trigger-text-b">Select player</span>
+            <span class="custom-select-arrow">&#9660;</span>
+          </div>
+          <div class="custom-select-dropdown"><div class="custom-select-list" id="pvp-list-b"></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="pvp-result"></div>
   </div>
 
 </div>

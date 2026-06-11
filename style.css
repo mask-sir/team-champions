@@ -1204,7 +1204,98 @@ body::before {
   display: inline-block;
 }
 
+/* ── PLAYER VS PLAYER ── */
+.pvp-picker-row {
+  display: flex; align-items: flex-end; gap: 24px;
+  margin-bottom: 32px; flex-wrap: wrap;
+}
+.pvp-player-pick { display: flex; flex-direction: column; gap: 8px; }
+
+.pvp-matchup-header {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 16px; margin-bottom: 24px;
+  padding: 24px; background: var(--card);
+  border: 1px solid var(--card-border); border-radius: 16px;
+  position: relative; overflow: hidden;
+  animation: sectionIn 0.4s ease both;
+}
+.pvp-matchup-header::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(245,200,66,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+.pvp-player-side { text-align: center; }
+.pvp-avatar-img {
+  width: 64px; height: 64px; border-radius: 50%;
+  object-fit: cover; display: block;
+  margin: 0 auto 8px;
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 20px rgba(245,200,66,0.3);
+  animation: avatarGlow 2s ease-in-out infinite;
+}
+.pvp-avatar-b { border-color: var(--accent); box-shadow: 0 0 20px rgba(76,175,125,0.3); }
+
+.pvp-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--pitch-light); margin: 0 auto 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 24px; color: var(--gold);
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 16px rgba(245,200,66,0.2);
+}
+.pvp-player-name { font-family: var(--font-display); font-size: 22px; color: var(--text); }
+.pvp-player-team { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pvp-record { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.pvp-score-center { text-align: center; }
+.pvp-score-display {
+  font-family: var(--font-display); font-size: 48px;
+  color: var(--gold); line-height: 1; letter-spacing: 4px;
+}
+.pvp-score-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+.pvp-stats-grid {
+  display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 16px; overflow: hidden; margin-bottom: 20px;
+  animation: sectionIn 0.4s ease 0.1s both;
+}
+.pvp-stat-row {
+  display: grid; grid-template-columns: 1fr 120px 1fr;
+  align-items: center; gap: 12px; padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+}
+.pvp-stat-row:last-child { border-bottom: none; }
+.pvp-stat-row:hover { background: rgba(245,200,66,0.03); }
+.pvp-stat-label { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.pvp-val-a { text-align: right; font-family: var(--font-display); font-size: 20px; color: var(--gold); }
+.pvp-val-b { text-align: left;  font-family: var(--font-display); font-size: 20px; color: var(--accent); }
+.pvp-val-a.winner, .pvp-val-b.winner { color: var(--text); text-shadow: 0 0 12px rgba(245,200,66,0.5); }
+
+.pvp-days-section {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 16px; overflow: hidden;
+  animation: sectionIn 0.4s ease 0.2s both;
+}
+.pvp-day-row {
+  display: grid; grid-template-columns: 140px 1fr 60px 1fr;
+  align-items: center; gap: 12px; padding: 11px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px;
+  transition: background 0.15s;
+}
+.pvp-day-row:last-child { border-bottom: none; }
+.pvp-day-row:hover { background: rgba(245,200,66,0.03); }
+.pvp-day-date { color: var(--muted); font-size: 12px; }
+.pvp-day-vol-a { text-align: right; font-family: var(--font-display); font-size: 18px; color: var(--gold); }
+.pvp-day-vol-b { text-align: left;  font-family: var(--font-display); font-size: 18px; color: var(--accent); }
+.pvp-day-winner { text-align: center; font-size: 11px; font-weight: 600; }
+.pvp-win-a { color: var(--gold); }
+.pvp-win-b { color: var(--accent); }
+.pvp-draw  { color: var(--muted); }
+
 /* ── RESPONSIVE ── */
+
 
 @media (max-width: 900px) {
   :root { --sidebar-w: 200px; }
