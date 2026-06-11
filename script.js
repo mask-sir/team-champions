@@ -427,7 +427,7 @@ function renderMonthly() {
     if (headerRow) headerRow.innerHTML = `
   <th>#</th>
   <th>Team</th>
-  <th>Total Points</th>
+  <th>Total Wins</th>
   <th>Total Volume</th>
 `;
 
