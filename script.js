@@ -64,7 +64,7 @@ function launchConfetti(duration = 3000) {
   canvas.height = window.innerHeight;
   canvas.classList.add('active');
 
-  const colors = ['#F5C842','#4CAF7D','#ffffff','#e05555','#8aaa95'];
+  const colors = ['#FFD75E','#00d98b','#ffffff','#ff5470','#7c8df0'];
   const pieces = Array.from({ length: 120 }, () => ({
     x:    Math.random() * canvas.width,
     y:    Math.random() * -canvas.height,
@@ -1440,17 +1440,23 @@ function thawAnimations(el) {
 }
 
 // Core capture — lifts element into isolated off-screen container so
-// sidebar margin/scroll/padding never bleeds into the output
-function captureElement(el) {
+// sidebar margin/scroll/padding never bleeds into the output.
+// withBrand adds the gold tournament header bar (sections that don't
+// already carry their own, unlike the standings snapshot).
+function captureElement(el, withBrand = false) {
   freezeAnimations(el);
 
   const CAPTURE_WIDTH = 900;
 
   const wrapper = document.createElement('div');
+  // capture-mode: swaps gradient-clip text (unsupported by html2canvas)
+  // for solid gold and strips tilt sheen — see style.css
+  wrapper.className = 'capture-mode';
   wrapper.style.cssText = `
     position:fixed; top:-9999px; left:-9999px;
-    width:${CAPTURE_WIDTH}px; background:#0f1f16;
-    padding:24px; box-sizing:border-box; z-index:-1;
+    width:${CAPTURE_WIDTH}px;
+    background:linear-gradient(160deg,#141b42 0%,#070b22 55%,#05081a 100%);
+    padding:28px; box-sizing:border-box; z-index:-1;
     font-family:'DM Sans',sans-serif;
   `;
 
@@ -1458,21 +1464,21 @@ function captureElement(el) {
   const varStyle = document.createElement('style');
   varStyle.textContent = `
     :root {
-      --gold:#F5C842; --gold-dark:#C9941A; --pitch:#1a3a2a;
-      --pitch-light:#2d5c3a; --surface:#0f1f16; --card:#162b1e;
-      --card-border:rgba(245,200,66,0.15); --text:#f0f0e8;
-      --muted:#8aaa95; --accent:#4CAF7D;
+      --gold:#FFD75E; --gold-dark:#C9941A; --pitch:#10173a;
+      --pitch-light:#232c5c; --surface:#05081a; --card:#0d1330;
+      --card-border:rgba(255,215,94,0.16); --text:#f2f4ff;
+      --muted:#8b93b8; --accent:#00d98b;
       --font-display:'Bebas Neue',sans-serif;
       --font-body:'DM Sans',sans-serif;
     }
     .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     .team-card { background:var(--card); border:1px solid var(--card-border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
     .team-card.rank-1 { border-color:var(--gold); }
-    .rank-badge { position:absolute; top:12px; right:12px; font-size:48px; color:rgba(245,200,66,0.08); line-height:1; }
+    .rank-badge { position:absolute; top:12px; right:12px; font-size:48px; color:rgba(255,215,94,0.08); line-height:1; }
     .score-big { font-size:44px; color:var(--gold); line-height:1.1; }
     .team-name { font-size:22px; letter-spacing:1px; color:var(--text); }
     .score-label { font-size:11px; color:var(--muted); margin-top:2px; }
-    .stat-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(76,175,125,0.12); border:1px solid rgba(76,175,125,0.25); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--accent); }
+    .stat-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(0,217,139,0.12); border:1px solid rgba(0,217,139,0.25); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--accent); }
     .prog-wrap { margin-top:6px; }
     .prog-bar { height:4px; background:var(--pitch-light); border-radius:4px; overflow:hidden; }
     .prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--gold)); border-radius:4px; }
@@ -1491,6 +1497,10 @@ function captureElement(el) {
 
   const clone = el.cloneNode(true);
 
+  // Drop any live tilt state carried over by the clone
+  clone.classList.remove('tilt-active');
+  clone.querySelectorAll('.tilt-active').forEach(n => n.classList.remove('tilt-active'));
+
   // Kill animations AND force visible:
   // cardFlipIn keyframe starts at opacity:0 — animation:none alone doesn't reset it.
   // cssText would also wipe the !important overrides, so use setProperty throughout.
@@ -1504,11 +1514,31 @@ function captureElement(el) {
   clone.style.setProperty('background', 'transparent');
   clone.style.setProperty('padding', '0');
 
+  const dateLabel = formatDateLabel(selectedDate) || '';
+
+  if (withBrand) {
+    const brand = document.createElement('div');
+    brand.className = 'capture-brand';
+    brand.innerHTML = `
+      <span class="cb-trophy">&#127942;</span>
+      <span class="cb-title">Team Champions World Cup</span>
+      <span class="cb-date">${dateLabel}</span>`;
+    wrapper.appendChild(brand);
+  }
+
   wrapper.appendChild(clone);
+
+  const foot = document.createElement('div');
+  foot.className = 'capture-foot';
+  foot.innerHTML = `
+    <span>&#9917; Team Champions <b>World Cup</b></span>
+    <span>${dateLabel}</span>`;
+  wrapper.appendChild(foot);
+
   document.body.appendChild(wrapper);
 
   return html2canvas(wrapper, {
-    backgroundColor: '#0f1f16',
+    backgroundColor: '#05081a',
     scale: 2,
     useCORS: true,
     allowTaint: false,
@@ -1571,15 +1601,15 @@ function showWAModal() {
   `;
   modal.innerHTML = `
     <div style="
-      background:#162b1e; border:1px solid rgba(245,200,66,0.3);
+      background:#0d1330; border:1px solid rgba(255,215,94,0.3);
       border-radius:16px; padding:28px 32px; max-width:360px; width:90%;
       text-align:center; font-family:'DM Sans',sans-serif;
     ">
       <div style="font-size:40px; margin-bottom:12px;">📲</div>
-      <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#F5C842; margin-bottom:8px;">
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:#FFD75E; margin-bottom:8px;">
         Share to WhatsApp
       </div>
-      <div style="font-size:13px; color:#8aaa95; margin-bottom:20px; line-height:1.6;">
+      <div style="font-size:13px; color:#8b93b8; margin-bottom:20px; line-height:1.6;">
         Image downloaded! On desktop, WhatsApp can't receive files via link.<br>
         Open WhatsApp Web and attach the downloaded image manually.
       </div>
@@ -1598,8 +1628,8 @@ function showWAModal() {
       </a>
       <div>
         <button onclick="document.getElementById('wa-modal').remove()" style="
-          background:transparent; border:1px solid rgba(245,200,66,0.3);
-          color:#F5C842; padding:8px 20px; border-radius:8px;
+          background:transparent; border:1px solid rgba(255,215,94,0.3);
+          color:#FFD75E; padding:8px 20px; border-radius:8px;
           font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif;
         ">Close</button>
       </div>
@@ -1631,7 +1661,7 @@ async function downloadSection(sectionId) {
   showToast('Capturing…');
   const target = document.getElementById(sectionId);
   try {
-    const canvas = await captureElement(target);
+    const canvas = await captureElement(target, true);
     canvas.toBlob(blob => {
       if (!blob) { showToast('Capture failed'); return; }
       const fname = sectionId + '-' + today() + '.png';
@@ -1683,7 +1713,7 @@ function showFetchError(type) {
       title: 'Open via a local server',
       body: `You're running from <code>file://</code> — browsers block Google Sheets fetch on file:// due to CORS.<br><br>
              <b>Fix:</b> Run a local server in this folder:<br>
-             <code style="display:block;margin-top:8px;padding:8px;background:#0a1810;border-radius:6px;">
+             <code style="display:block;margin-top:8px;padding:8px;background:#070b22;border-radius:6px;">
                python -m http.server 8080
              </code>
              Then open <code>http://localhost:8080</code> in your browser.`
@@ -1707,12 +1737,12 @@ function showFetchError(type) {
     grid.style.gridColumn = '1 / -1';
     grid.innerHTML = `
       <div style="
-        background:var(--card); border:1px solid rgba(224,85,85,0.3);
+        background:var(--card); border:1px solid rgba(255,84,112,0.3);
         border-radius:14px; padding:32px; text-align:center;
         grid-column:1/-1;
       ">
         <div style="font-size:40px;margin-bottom:12px;">${m.icon}</div>
-        <div style="font-family:var(--font-display);font-size:22px;color:#e05555;margin-bottom:12px;">${m.title}</div>
+        <div style="font-family:var(--font-display);font-size:22px;color:#ff5470;margin-bottom:12px;">${m.title}</div>
         <div style="font-size:13px;color:var(--muted);line-height:1.8;max-width:480px;margin:0 auto;">${m.body}</div>
       </div>`;
   }
