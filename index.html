@@ -13,14 +13,16 @@
 </head>
 <body>
 
-<!-- Cinematic Loading Screen -->
+<!-- Futuristic 3D Loading Screen -->
 <div id="loading-screen">
-  <!-- Animated pitch lines -->
-  <div class="ls-pitch">
-    <div class="ls-pitch-line ls-center-circle"></div>
-    <div class="ls-pitch-line ls-halfway"></div>
-    <div class="ls-pitch-line ls-box-left"></div>
-    <div class="ls-pitch-line ls-box-right"></div>
+  <!-- Neon pitch grid floor rushing toward the viewer -->
+  <div class="ls-floor"><div class="ls-floor-grid"></div></div>
+  <div class="ls-horizon"></div>
+
+  <!-- Rising light particles -->
+  <div class="ls-particles">
+    <span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span>
   </div>
 
   <!-- Spotlight beams -->
@@ -31,9 +33,14 @@
 
   <!-- Content -->
   <div class="ls-content">
-    <div class="ls-trophy-wrap">
-      <div class="ls-trophy">&#127942;</div>
-      <div class="ls-trophy-glow"></div>
+    <!-- Holographic 3D gyroscope around the trophy -->
+    <div class="ls-gyro">
+      <div class="ls-ring ls-ring-x"></div>
+      <div class="ls-ring ls-ring-y"></div>
+      <div class="ls-ring ls-ring-z"></div>
+      <div class="ls-gyro-glow"></div>
+      <div class="ls-core"><div class="ls-trophy">&#127942;</div></div>
+      <div class="ls-ball">&#9917;</div>
     </div>
     <div class="ls-title-wrap">
       <div class="ls-title-line1">TEAM</div>
@@ -41,7 +48,7 @@
       <div class="ls-title-line3">WORLD CUP</div>
     </div>
     <div class="ls-bar-wrap">
-      <div class="ls-bar"><div class="ls-bar-fill"></div></div>
+      <div class="ls-bar"><div class="ls-bar-fill"></div><div class="ls-bar-spark"></div></div>
       <div class="ls-bar-label">Loading match data...</div>
     </div>
     <div class="ls-teams">
