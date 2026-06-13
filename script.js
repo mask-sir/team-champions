@@ -357,6 +357,8 @@ function renderStandings(celebrate = false) {
   if (celebrate) {
     celebrateLeader(teams);
   }
+
+  renderCommentary();
 }
 
 // ── RENDER: Daily Scoreboard ───────────────────────────────────
@@ -1453,6 +1455,9 @@ function onDateChange(value) {
     }
   });
 
+  // Switch the commentary feed + diff baseline to the newly selected date
+  initCommentary();
+
   const active = document.querySelector('.section.active');
   if (!active) return;
   const id = active.id.replace('sec-', '');
@@ -1727,6 +1732,7 @@ async function downloadSection(sectionId) {
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
   syncAnimToggleUI(); // reflect saved animation preference on the toggle
+  syncAlertsUI();     // reflect current notification-permission state on the button
   const now      = new Date();
   const opts     = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
   const sideDate = document.getElementById('side-date');
@@ -1744,6 +1750,7 @@ async function init() {
 
   try {
     await getLiveData();
+    initCommentary();      // seed baseline + load this date's saved feed
     renderStandings(true);
   } catch (err) {
     console.error('Failed to load sheet data:', err);
@@ -1828,79 +1835,277 @@ function topPlayer(players) {
     .sort((a, b) => b.vol - a.vol)[0] || null;
 }
 
-async function requestNotifPermission() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'granted') { _notifGranted = true; return; }
-  if (Notification.permission !== 'denied') {
-    const p = await Notification.requestPermission();
-    _notifGranted = p === 'granted';
+// App-level alerts on/off preference. The browser permission can't be revoked
+// by a page, so we keep our own mute switch: alerts fire only when permission
+// is granted AND the user hasn't muted them here.
+const ALERTS_PREF_KEY = 'tcwc_alerts';
+let _alertsEnabled = false;
+
+function alertsActive() {
+  return _notifGranted && _alertsEnabled;
+}
+
+// Reflect permission + saved preference on the button WITHOUT prompting
+// (safe to call on load and after any change).
+function syncAlertsUI() {
+  const supported = 'Notification' in window;
+  const perm = supported ? Notification.permission : 'unsupported';
+  _notifGranted = supported && perm === 'granted';
+  if (perm === 'granted') {
+    const saved = localStorage.getItem(ALERTS_PREF_KEY);
+    _alertsEnabled = saved === null ? true : saved === 'on'; // default ON once allowed
+  } else {
+    _alertsEnabled = false;
   }
+
+  const btn = document.getElementById('alerts-btn');
+  if (!btn) return;
+  const on = alertsActive();
+  btn.classList.toggle('is-on', on);
+  btn.classList.toggle('is-blocked', perm === 'denied' || perm === 'unsupported');
+  btn.setAttribute('aria-pressed', String(on));
+  const ic = btn.querySelector('.alerts-ic');
+  if (ic) ic.textContent = on ? '🔔' : '🔕';
+  const label = btn.querySelector('.alerts-label');
+  if (label) {
+    label.textContent =
+      perm === 'denied'      ? 'Alerts blocked' :
+      perm === 'unsupported' ? 'No alerts'      :
+      perm === 'default'     ? 'Enable alerts'  :
+      on                     ? 'Alerts on'      :
+                               'Alerts off';
+  }
+}
+
+// Click handler: requests permission the first time, then toggles on/off.
+// Only ever called from a user click (browsers suppress auto-prompts).
+async function toggleAlerts() {
+  if (!('Notification' in window)) {
+    showToast('Notifications aren’t supported on this device');
+    syncAlertsUI();
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Alerts are blocked — turn them on in your browser settings');
+    syncAlertsUI();
+    return;
+  }
+  if (Notification.permission === 'default') {
+    const p = await Notification.requestPermission();
+    if (p === 'granted') {
+      localStorage.setItem(ALERTS_PREF_KEY, 'on');
+      showToast('Alerts on 🔔');
+    } else {
+      showToast('Alerts not enabled');
+    }
+    syncAlertsUI();
+    return;
+  }
+  // Permission already granted → flip our app-level mute switch
+  const turnOn = !_alertsEnabled;
+  localStorage.setItem(ALERTS_PREF_KEY, turnOn ? 'on' : 'off');
+  syncAlertsUI();
+  showToast(turnOn ? 'Alerts on 🔔' : 'Alerts off 🔕');
 }
 
 function pushNotif(title, body, icon = '🏆') {
   // Always show in-app toast
   showToast(title);
-  if (!_notifGranted || document.visibilityState === 'visible') return;
+  if (!alertsActive() || document.visibilityState === 'visible') return;
   try {
     new Notification(title, { body, icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>' + icon + '</text></svg>' });
   } catch(e) {}
+}
+
+// ── LIVE COMMENTARY ENGINE ───────────────────────────────────
+// Diffs each refresh against the last seen state and turns the changes into
+// broadcast-style commentary lines. The feed persists per date in localStorage
+// so it survives reloads. Big moments also fire toasts / browser notifications.
+const COMMENTARY_CAP = 60;
+let commentaryLog = [];      // [{ icon, text, kind, ts }] newest first, for selectedDate
+let _prevPlayers  = null;    // baseline snapshot map for diffing
+
+const GOAL_LINES = [
+  'GOAL! {name} nets +{delta} for {team} — {vol} FTD on the board!',
+  'What a finish from {name}! +{delta} ({vol} total) for {team}.',
+  '{name} buries it! {team} up by +{delta}, now on {vol}.',
+  'Clinical from {name} — +{delta} FTD, tally climbs to {vol}.',
+  '{name} strikes again for {team}! +{delta} → {vol} FTD.'
+];
+const SUBON_LINES = [
+  '{name} steps onto the pitch for {team}.',
+  '{team} send on {name} — ready to make an impact.',
+  '{name} is in the game for {team}.'
+];
+const SUBOFF_LINES = [
+  '{name} heads off the pitch.',
+  '{name} is subbed off for {team}.'
+];
+const LEADER_LINES = [
+  '{team} STORM to the top of the table!',
+  'New leaders! {team} hit the summit.',
+  '{team} seize first place — what a turnaround!'
+];
+const TOP_LINES = [
+  '{name} is ON FIRE — leads the Golden Boot race with {vol}!',
+  '{name} surges clear at the top of the scorers — {vol} FTD!',
+  '{name} grabs the Golden Boot lead with {vol}!'
+];
+
+function pickLine(pool, vars) {
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  return t.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ''));
+}
+
+function snapshotMap(players) {
+  const m = {};
+  players.forEach(p => { m[p.name] = { vol: p.vol, working: p.working, team: p.team }; });
+  return m;
+}
+
+function commentaryKey(date) { return 'tcwc_commentary_' + date; }
+function loadCommentaryLog(date) {
+  try { return JSON.parse(localStorage.getItem(commentaryKey(date)) || '[]'); }
+  catch (e) { return []; }
+}
+function saveCommentaryLog(date) {
+  try { localStorage.setItem(commentaryKey(date), JSON.stringify(commentaryLog.slice(0, COMMENTARY_CAP))); }
+  catch (e) {}
+}
+
+function fmtClock(ts) {
+  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderCommentary() {
+  const feed = document.getElementById('commentary-feed');
+  if (!feed) return;
+  if (!commentaryLog.length) {
+    feed.innerHTML = '<div class="commentary-empty">Waiting for the next big moment… new deposits show up here live.</div>';
+    return;
+  }
+  feed.innerHTML = commentaryLog.map((e, i) => `
+    <div class="commentary-line kind-${e.kind}${i === 0 ? ' is-new' : ''}">
+      <span class="commentary-ic">${e.icon}</span>
+      <span class="commentary-tx">${e.text}</span>
+      <span class="commentary-ts">${fmtClock(e.ts)}</span>
+    </div>`).join('');
+}
+
+function addCommentary(events) {
+  if (!events || !events.length) return;
+  const now = Date.now();
+  events.forEach(e => commentaryLog.unshift({ ...e, ts: now }));
+  commentaryLog = commentaryLog.slice(0, COMMENTARY_CAP);
+  saveCommentaryLog(selectedDate);
+  renderCommentary();
+}
+
+function hasLeaderboardActivity(players) {
+  return players.some(p => p.working && p.vol > 0);
+}
+
+function buildCommentaryEvents(prev, curr) {
+  const events = [];
+  curr.forEach(p => {
+    const before = prev[p.name];
+    if (!before) return; // unknown baseline — skip to avoid a flood of fake goals
+    if (p.vol > before.vol) {
+      events.push({ kind: 'goal', icon: '⚽',
+        text: pickLine(GOAL_LINES, { name: p.name, team: p.team, delta: p.vol - before.vol, vol: p.vol }) });
+    }
+    if (p.working && !before.working) {
+      events.push({ kind: 'sub', icon: '🟢', text: pickLine(SUBON_LINES, { name: p.name, team: p.team }) });
+    } else if (!p.working && before.working) {
+      events.push({ kind: 'suboff', icon: '⚪', text: pickLine(SUBOFF_LINES, { name: p.name, team: p.team }) });
+    }
+  });
+  return events;
+}
+
+// Seed/reset the baseline + feed for the currently selected date (no events).
+function initCommentary() {
+  commentaryLog = loadCommentaryLog(selectedDate);
+  const players  = buildPlayersForDate(selectedDate);
+  _prevPlayers   = snapshotMap(players);
+  _lastLeader    = teamLeader(players);
+  _lastTopPlayer = topPlayer(players)?.name || '';
+  renderCommentary();
+}
+
+// Compare the latest data to the baseline and emit commentary + side effects.
+function commentaryTick() {
+  const players = buildPlayersForDate(selectedDate);
+  if (!_prevPlayers) { initCommentary(); return; } // first run = baseline only
+
+  const events = buildCommentaryEvents(_prevPlayers, players);
+
+  const leader = teamLeader(players);
+  if (leader && leader !== _lastLeader && hasLeaderboardActivity(players)) {
+    events.push({ kind: 'leader', icon: '🏆', text: pickLine(LEADER_LINES, { team: leader }) });
+  }
+  const top = topPlayer(players);
+  if (top && top.name !== _lastTopPlayer) {
+    events.push({ kind: 'top', icon: '🔥', text: pickLine(TOP_LINES, { name: top.name, vol: top.vol, team: top.team }) });
+  }
+
+  if (events.length) {
+    addCommentary(events);
+
+    // Fire ONE side effect per tick (most important wins) to avoid toast spam.
+    const leaderEv = events.find(e => e.kind === 'leader');
+    const goalEv   = events.find(e => e.kind === 'goal');
+    const topEv    = events.find(e => e.kind === 'top');
+    if (leaderEv) {
+      showGoalBanner(leader);
+      launchConfetti(3000);
+      pushNotif(`🏆 ${leader} takes the lead!`, leaderEv.text, '🏆');
+    } else if (goalEv) {
+      pushNotif('⚽ ' + goalEv.text, goalEv.text, '⚽');
+    } else if (topEv) {
+      pushNotif('🔥 ' + topEv.text, topEv.text, '🔥');
+    }
+  }
+
+  _prevPlayers   = snapshotMap(players);
+  _lastLeader    = leader;
+  _lastTopPlayer = top?.name || '';
 }
 
 async function silentRefresh() {
   if (location.protocol === 'file:') return;
   try {
     await getLiveData();
-    const players = buildPlayersForDate(selectedDate);
-    const hash    = scoreHash(players);
-    const leader  = teamLeader(players);
-    const top     = topPlayer(players);
 
-    // New data arrived
-    if (hash && hash !== _lastScoreHash) {
-      const isFirst = _lastScoreHash === '';
+    // Generate live commentary from what changed
+    commentaryTick();
 
-      // Leader changed
-      if (!isFirst && leader && leader !== _lastLeader) {
-        pushNotif(`🏆 ${leader} takes the lead!`, `Rankings updated — ${leader} is now #1`, '🏆');
-        showGoalBanner(leader);
-        launchConfetti(3000);
-      }
-
-      // Top player changed or big vol
-      if (!isFirst && top && top.name !== _lastTopPlayer) {
-        pushNotif(`🔥 ${top.name} is on fire!`, `${top.name} leads with ${top.vol} FTD vol today`, '⚽');
-      }
-
-      // Re-render active section silently
-      const active = document.querySelector('.section.active');
-      if (active) {
-        const id = active.id.replace('sec-', '');
-        if (id === 'standings')  renderStandings(false);
-        if (id === 'daily')      renderDaily();
-        if (id === 'motm')       renderMOTM();
-        if (id === 'monthly')    renderMonthly();
-        if (id === 'performers') renderPerformers();
-        if (id === 'history')    renderHistory();
-      }
-
-      // Update live indicator
-      const liveLabel = document.getElementById('standings-date');
-      if (liveLabel) {
-        const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        liveLabel.textContent = 'Last updated: ' + t;
-      }
-
-      _lastScoreHash  = hash;
-      _lastLeader     = leader;
-      _lastTopPlayer  = top?.name || '';
+    // Re-render whatever section is visible so the board reflects fresh data
+    const active = document.querySelector('.section.active');
+    if (active) {
+      const id = active.id.replace('sec-', '');
+      if (id === 'standings')  renderStandings(false);
+      if (id === 'daily')      renderDaily();
+      if (id === 'motm')       renderMOTM();
+      if (id === 'monthly')    renderMonthly();
+      if (id === 'performers') renderPerformers();
+      if (id === 'history')    renderHistory();
     }
-  } catch(e) {
+
+    // Update live indicator with last refresh time
+    const liveLabel = document.getElementById('standings-date');
+    if (liveLabel) {
+      const t = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      liveLabel.textContent = 'Last updated: ' + t;
+    }
+  } catch (e) {
     console.warn('Silent refresh failed:', e);
   }
 }
 
 // Kick off
-requestNotifPermission();
-setInterval(silentRefresh, 60 * 1000); // every 60s, no page reload
+// Notification permission is now requested on user click (see enableAlerts),
+// not automatically on load.
+setInterval(silentRefresh, 30 * 1000); // every 30s, no page reload — keeps commentary live
 
 init();

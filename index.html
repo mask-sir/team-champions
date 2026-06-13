@@ -139,7 +139,24 @@
         <span class="anim-toggle-label">Animations</span>
         <span class="anim-toggle-track"><span class="anim-toggle-knob"></span></span>
       </button>
+      <!-- Enable browser notifications (asks permission on click) -->
+      <button class="alerts-btn" id="alerts-btn" type="button" role="switch" aria-pressed="false"
+              onclick="toggleAlerts()" title="Turn big-moment alerts on or off">
+        <span class="alerts-ic" aria-hidden="true">🔔</span>
+        <span class="alerts-label">Enable alerts</span>
+      </button>
     </div>
+    <!-- Live commentary feed (kept outside #snapshot-target so it's not in shared images) -->
+    <div class="commentary" id="commentary">
+      <div class="commentary-head">
+        <span class="commentary-title">📻 Live Commentary</span>
+        <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+      </div>
+      <div class="commentary-feed" id="commentary-feed">
+        <div class="commentary-empty">Waiting for the next big moment… new deposits show up here live.</div>
+      </div>
+    </div>
+
     <div id="snapshot-target">
       <div class="snap-header">
         <div>
