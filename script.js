@@ -40,6 +40,22 @@ function parseDate(str) {
   return new Date(str);
 }
 
+// Parse a form timestamp like "13/06/2026 13:28:17" (DD/MM/YYYY HH:MM:SS).
+// native `new Date()` reads "13/06" as month 13 → Invalid Date, which broke
+// the "keep the latest entry per player" logic. Returns ms since epoch (0 if
+// unparseable, so chronological CSV order then decides the winner).
+function parseTimestamp(str) {
+  if (!str) return 0;
+  const [datePart, timePart = ''] = str.trim().split(/\s+/);
+  if (datePart.includes('/')) {
+    const [d, m, y] = datePart.split('/').map(Number);
+    const [h = 0, min = 0, s = 0] = timePart.split(':').map(Number);
+    return new Date(y, m - 1, d, h, min, s).getTime();
+  }
+  const t = new Date(str).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
 function formatDateLabel(str) {
   const d = parseDate(str);
   if (!d || isNaN(d)) return str;
@@ -152,9 +168,13 @@ function celebrateLeader(teams) {
 
 // ── Data loading ───────────────────────────────────────────────
 async function getLiveData() {
+  // Google's published CSV is cached for 5 min (Cache-Control: max-age=300).
+  // A unique query param + no-store bypasses both the browser and Google's CDN
+  // cache, so live edits (e.g. today's deposits) show up on each refresh.
+  const bust = `&_=${Date.now()}`;
   const [playersRes, entriesRes] = await Promise.all([
-    fetch(PLAYERS_URL),
-    fetch(SHEET_URL)
+    fetch(PLAYERS_URL + bust, { cache: 'no-store' }),
+    fetch(SHEET_URL + bust, { cache: 'no-store' })
   ]);
 
   const playersCsv = await playersRes.text();
@@ -244,8 +264,11 @@ function buildPlayersForDate(date) {
     if (!snapshot[playerName]) return;
 
     const prev = snapshot[playerName].timestamp;
-    if (!prev || new Date(timestamp) > new Date(prev)) {
-      snapshot[playerName].timestamp = timestamp;
+    const cur  = parseTimestamp(timestamp);
+    // `>=` so that on equal/unparseable timestamps the later CSV row (the most
+    // recent form submission) wins.
+    if (prev == null || cur >= prev) {
+      snapshot[playerName].timestamp = cur;
       snapshot[playerName].working   = working;
       snapshot[playerName].vol       = vol;
     }
