@@ -55,8 +55,35 @@ function showToast(msg) {
   t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
+// ── Animation toggle (performance switch, persists to localStorage) ──
+// The `anim-off` class on <html> is applied pre-paint by an inline script
+// in index.html. These helpers keep it, the UI, and storage in sync.
+const ANIM_PREF_KEY = 'tcwc_anim';
+
+function animationsEnabled() {
+  return !document.documentElement.classList.contains('anim-off');
+}
+
+function syncAnimToggleUI() {
+  const btn = document.getElementById('anim-toggle');
+  if (!btn) return;
+  const enabled = animationsEnabled();
+  btn.setAttribute('aria-checked', String(enabled));
+  const label = btn.querySelector('.anim-toggle-label');
+  if (label) label.textContent = enabled ? 'Animations' : 'Animations off';
+}
+
+function toggleAnimations() {
+  const turningOff = animationsEnabled();
+  document.documentElement.classList.toggle('anim-off', turningOff);
+  try { localStorage.setItem(ANIM_PREF_KEY, turningOff ? 'off' : 'on'); } catch (e) {}
+  syncAnimToggleUI();
+  showToast(turningOff ? 'Animations off — smoother performance' : 'Animations on ✨');
+}
+
 // ── FIFA: Confetti ─────────────────────────────────────────────
 function launchConfetti(duration = 3000) {
+  if (!animationsEnabled()) return;
   const canvas = document.getElementById('confetti-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -107,6 +134,7 @@ function launchConfetti(duration = 3000) {
 
 // ── FIFA: Goal Banner ──────────────────────────────────────────
 function showGoalBanner(winnerName) {
+  if (!animationsEnabled()) return;
   const banner = document.getElementById('goal-banner');
   const sub    = document.getElementById('goal-banner-sub');
   if (!banner || !sub) return;
@@ -1675,6 +1703,7 @@ async function downloadSection(sectionId) {
 
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
+  syncAnimToggleUI(); // reflect saved animation preference on the toggle
   const now      = new Date();
   const opts     = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
   const sideDate = document.getElementById('side-date');

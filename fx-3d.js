@@ -25,6 +25,12 @@
   }
 
   document.addEventListener('mousemove', (e) => {
+    // Respect the animation toggle — skip all tilt work when off
+    if (document.documentElement.classList.contains('anim-off')) {
+      if (current) { resetTilt(current); current = null; }
+      return;
+    }
+
     const el = e.target.closest ? e.target.closest(TILT_SELECTOR) : null;
 
     if (current && current !== el) resetTilt(current);

@@ -1862,3 +1862,130 @@ body::after {
   .h2h-day-row { grid-template-columns: 80px 1fr 44px 1fr; font-size: 12px; padding: 10px 12px; }
   .h2h-score-display { letter-spacing: 2px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATION TOGGLE — performance switch (persists to localStorage)
+═══════════════════════════════════════════════════════════════ */
+
+/* The toggle control itself */
+.anim-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--card-glass);
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+.anim-toggle:hover {
+  border-color: rgba(255, 215, 94, 0.4);
+  transform: translateY(-1px);
+}
+.anim-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.anim-toggle-icon { font-size: 14px; line-height: 1; }
+.anim-toggle-label { letter-spacing: 0.2px; }
+.anim-toggle-track {
+  position: relative;
+  width: 38px; height: 20px; border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent-dark), var(--accent));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.anim-toggle-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* OFF state — driven by the class on <html> */
+.anim-off .anim-toggle-track {
+  background: linear-gradient(180deg, #2a3160, #3a4376);
+}
+.anim-off .anim-toggle-knob { transform: translateX(18px); }
+/* The knob transition is the one motion we intentionally keep when
+   animations are off, so the switch still feels responsive. */
+
+/* ── KILL SWITCH: stop the expensive work when animations are off ── */
+html.anim-off *,
+html.anim-off *::before,
+html.anim-off *::after {
+  animation: none !important;
+  transition: none !important;
+}
+html.anim-off { scroll-behavior: auto !important; }
+/* Re-allow the toggle knob's own motion for feedback */
+html.anim-off .anim-toggle-knob { transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important; }
+
+/* Drop the heavy fixed decorative layers (starfield + perspective pitch) */
+html.anim-off body::before,
+html.anim-off body::after { display: none !important; }
+
+/* Loading screen: skip the cinematic FX layers, keep the title/bar */
+html.anim-off .ls-floor,
+html.anim-off .ls-horizon,
+html.anim-off .ls-particles,
+html.anim-off .ls-spotlight,
+html.anim-off .ls-ring,
+html.anim-off .ls-gyro-glow,
+html.anim-off .ls-ball { display: none !important; }
+
+/* Make any entrance-animated content visible immediately (cards start at
+   opacity:0 and rely on animation to appear — without this they'd vanish) */
+html.anim-off .team-card,
+html.anim-off .motm-card,
+html.anim-off .card,
+html.anim-off .section.active,
+html.anim-off .option-visible,
+html.anim-off [class*="-card"] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* ── Simple loading screen (only when animations are off) ── */
+.ls-simple { display: none; }              /* hidden when animations are on */
+html.anim-off .ls-content { display: none !important; } /* drop the cinematic one */
+html.anim-off .ls-simple {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 0 20px;
+}
+.ls-simple-trophy { font-size: 64px; line-height: 1; }
+.ls-simple-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+.ls-simple-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.4px;
+}
+.ls-simple-spinner {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 215, 94, 0.18);
+  border-top-color: var(--gold);
+  /* re-enabled below even when animations are off — a loader needs to spin */
+}
+/* The spinner is the one intentional motion kept in animations-off mode */
+html.anim-off .ls-simple-spinner {
+  animation: lsSimpleSpin 0.8s linear infinite !important;
+}
+@keyframes lsSimpleSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  html.anim-off .ls-simple-spinner { animation: none !important; }
+}

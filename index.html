@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Team Champions World Cup</title>
+<!-- Apply saved animation preference before first paint (avoids FX flash) -->
+<script>
+  try {
+    if (localStorage.getItem('tcwc_anim') === 'off') {
+      document.documentElement.classList.add('anim-off');
+    }
+  } catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -54,6 +62,14 @@
     <div class="ls-teams">
       <span>🇦🇷</span><span>🇵🇹</span><span>🇧🇷</span><span>🇪🇸</span>
     </div>
+  </div>
+
+  <!-- Simple loading screen — shown only when animations are off -->
+  <div class="ls-simple">
+    <div class="ls-simple-trophy">&#127942;</div>
+    <div class="ls-simple-title">Champions World Cup</div>
+    <div class="ls-simple-spinner" aria-hidden="true"></div>
+    <div class="ls-simple-label">Loading match data…</div>
   </div>
 </div>
 
@@ -116,6 +132,13 @@
       <!-- Hidden native select kept for JS compatibility -->
       <select id="date-select" style="display:none"></select>
       <button class="dl-btn" onclick="downloadSnapshot()">&#8681; 📤 Share to WhatsApp</button>
+      <!-- Animation on/off toggle (persists to localStorage) -->
+      <button class="anim-toggle" id="anim-toggle" type="button" role="switch" aria-checked="true"
+              onclick="toggleAnimations()" title="Turn animations on or off">
+        <span class="anim-toggle-icon" aria-hidden="true">✨</span>
+        <span class="anim-toggle-label">Animations</span>
+        <span class="anim-toggle-track"><span class="anim-toggle-knob"></span></span>
+      </button>
     </div>
     <div id="snapshot-target">
       <div class="snap-header">
