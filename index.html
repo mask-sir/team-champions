@@ -194,7 +194,18 @@
       <h2>Monthly Scoreboard</h2>
       <p id="monthly-label">Cumulative rankings for this month</p>
     </div>
-    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+      <!-- Month selector -->
+      <div class="custom-select-wrap" style="min-width:170px;">
+        <div class="custom-select-trigger" onclick="toggleMonthPicker(event)">
+          <span class="date-selector-icon">&#128197;</span>
+          <span class="month-trigger-text">This month</span>
+          <span class="custom-select-arrow">&#9660;</span>
+        </div>
+        <div class="custom-select-dropdown">
+          <div class="custom-select-list month-list-el"></div>
+        </div>
+      </div>
       <!-- Custom animated monthly view picker -->
       <div class="custom-select-wrap" id="monthly-picker-wrap" style="min-width:180px;">
         <div class="custom-select-trigger" id="monthly-trigger" onclick="toggleMonthlyPicker(event)">
@@ -251,9 +262,19 @@
   <div id="sec-performers" class="section">
     <div class="page-header">
       <h2>Top Performers</h2>
-      <p>Monthly individual rankings</p>
+      <p id="performers-label">Monthly individual rankings</p>
     </div>
-    <div style="display:flex; gap:10px; margin-bottom:20px;">
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+      <div class="custom-select-wrap" style="min-width:170px;">
+        <div class="custom-select-trigger" onclick="toggleMonthPicker(event)">
+          <span class="date-selector-icon">&#128197;</span>
+          <span class="month-trigger-text">This month</span>
+          <span class="custom-select-arrow">&#9660;</span>
+        </div>
+        <div class="custom-select-dropdown">
+          <div class="custom-select-list month-list-el"></div>
+        </div>
+      </div>
       <button class="dl-btn dl-btn-outline" onclick="downloadSection('sec-performers')">&#8681; Download as image</button>
     </div>
     <div id="performers-grid" class="grid-3"></div>
@@ -263,7 +284,19 @@
   <div id="sec-history" class="section">
     <div class="page-header">
       <h2>Match History</h2>
-      <p>Daily results archive</p>
+      <p id="history-label">Daily results archive</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+      <div class="custom-select-wrap" style="min-width:170px;">
+        <div class="custom-select-trigger" onclick="toggleMonthPicker(event)">
+          <span class="date-selector-icon">&#128197;</span>
+          <span class="month-trigger-text">This month</span>
+          <span class="custom-select-arrow">&#9660;</span>
+        </div>
+        <div class="custom-select-dropdown">
+          <div class="custom-select-list month-list-el"></div>
+        </div>
+      </div>
     </div>
     <div id="history-list"></div>
   </div>

@@ -25,6 +25,7 @@ let selectedDate  = null;
 let allEntryLines = [];
 let allPlayers    = {};
 let allDates      = [];
+let selectedMonth = '';   // 'YYYY-MM' — filters Monthly Scoreboard + Top Performers
 
 // ── Helpers ────────────────────────────────────────────────────
 function today() {
@@ -240,8 +241,9 @@ async function getLiveData() {
     dateSelect.value = selectedDate;
   }
 
-  // Populate custom animated picker
+  // Populate custom animated pickers
   buildCustomDatePicker(allDates, selectedDate);
+  buildMonthPicker();
 
   return buildPlayersForDate(selectedDate);
 }
@@ -282,6 +284,30 @@ function buildAllDaysData() {
     date,
     players: buildPlayersForDate(date)
   }));
+}
+
+// ── Month helpers ──────────────────────────────────────────────
+function monthKeyOf(dateStr) {
+  const d = parseDate(dateStr);
+  if (!d || isNaN(d)) return null;
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabelOf(key) {
+  if (!key) return '—';
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+function getAllMonths() {
+  const set = new Set();
+  allDates.forEach(d => { const k = monthKeyOf(d); if (k) set.add(k); });
+  return [...set].sort((a, b) => b.localeCompare(a)); // newest first
+}
+// Same shape as buildAllDaysData(), but only the days within `monthKey`.
+function buildMonthDaysData(monthKey) {
+  const key = monthKey || getAllMonths()[0] || '';
+  return allDates
+    .filter(d => monthKeyOf(d) === key)
+    .map(date => ({ date, players: buildPlayersForDate(date) }));
 }
 
 // ── Team score helpers ─────────────────────────────────────────
@@ -392,7 +418,8 @@ function renderDaily() {
 
 // ── RENDER: Monthly Scoreboard ─────────────────────────────────
 function renderMonthly() {
-  const allDaysData  = buildAllDaysData();
+  if (!selectedMonth) selectedMonth = getAllMonths()[0] || '';
+  const allDaysData  = buildMonthDaysData(selectedMonth);
   const monthlyView  = document.getElementById('monthly-view')?.value || 'players';
 
   // Aggregate across all days
@@ -444,9 +471,7 @@ function renderMonthly() {
   // Monthly label
   const lbl = document.getElementById('monthly-label');
   if (lbl) {
-    const now = new Date();
-    lbl.textContent = 'Cumulative rankings — ' +
-      now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    lbl.textContent = 'Cumulative rankings — ' + monthLabelOf(selectedMonth);
   }
 
   // FIX: safe header + tbody access
@@ -647,7 +672,11 @@ function renderMOTM() {
 
 // ── RENDER: Top Performers ─────────────────────────────────────
 function renderPerformers() {
-  const allDaysData = buildAllDaysData();
+  if (!selectedMonth) selectedMonth = getAllMonths()[0] || '';
+  const allDaysData = buildMonthDaysData(selectedMonth);
+
+  const perfLbl = document.getElementById('performers-label');
+  if (perfLbl) perfLbl.textContent = 'Monthly individual rankings — ' + monthLabelOf(selectedMonth);
 
   const playerMap = {};
   Object.values(allPlayers).forEach(p => {
@@ -714,7 +743,10 @@ function renderPerformers() {
 
 // ── RENDER: Match History ──────────────────────────────────────
 function renderHistory() {
-  const allDaysData = buildAllDaysData();
+  if (!selectedMonth) selectedMonth = getAllMonths()[0] || '';
+  const allDaysData = buildMonthDaysData(selectedMonth);
+  const histLbl = document.getElementById('history-label');
+  if (histLbl) histLbl.textContent = 'Daily results archive — ' + monthLabelOf(selectedMonth);
   const list = document.getElementById('history-list');
   if (!list) return;
   list.innerHTML = '';
@@ -1426,6 +1458,80 @@ function pickMonthlyView(value, label) {
   const sel = document.getElementById('monthly-view');
   if (sel) sel.value = value;
   renderMonthly();
+}
+
+// ── Month picker (filters Monthly Scoreboard + Top Performers + History) ──
+// Multi-instance: one picker per section, all share `selectedMonth`.
+// Default = latest month present in the sheet. Options = only months in data.
+let _monthPickerOpenTime = 0;
+let _openMonthWrap = null;
+
+function buildMonthPicker() {
+  const months = getAllMonths();
+  // Always default to latest month in the data (no stale persistence).
+  if (!months.includes(selectedMonth)) selectedMonth = months[0] || '';
+
+  document.querySelectorAll('.month-list-el').forEach(list => {
+    list.innerHTML = '';
+    months.forEach(key => {
+      const item = document.createElement('div');
+      item.className = 'custom-option' + (key === selectedMonth ? ' selected' : '');
+      item.dataset.value = key;
+      item.textContent = monthLabelOf(key);
+      item.onclick = (e) => { e.stopPropagation(); pickMonth(key); };
+      list.appendChild(item);
+    });
+  });
+  document.querySelectorAll('.month-trigger-text').forEach(t => { t.textContent = monthLabelOf(selectedMonth); });
+}
+
+function toggleMonthPicker(e) {
+  if (e) e.stopPropagation();
+  const wrap = e && e.target.closest('.custom-select-wrap');
+  if (!wrap) return;
+  wrap.classList.contains('open') ? closeMonthPickers() : openMonthPicker(wrap);
+}
+function openMonthPicker(wrap) {
+  closeMonthPickers();
+  wrap.classList.add('open');
+  _openMonthWrap = wrap;
+  _monthPickerOpenTime = Date.now();
+  const options = wrap.querySelectorAll('.custom-option');
+  options.forEach((opt, i) => { opt.classList.remove('option-visible'); opt.style.animationDelay = (i * 0.05) + 's'; });
+  requestAnimationFrame(() => options.forEach(opt => opt.classList.add('option-visible')));
+  const selected = wrap.querySelector('.custom-option.selected');
+  if (selected) setTimeout(() => selected.scrollIntoView({ block: 'nearest' }), 200);
+  document.addEventListener('click', _monthOutsideClick);
+}
+function closeMonthPickers() {
+  document.querySelectorAll('.custom-select-wrap.open').forEach(w => {
+    if (w.querySelector('.month-list-el')) w.classList.remove('open');
+  });
+  _openMonthWrap = null;
+  document.removeEventListener('click', _monthOutsideClick);
+}
+function _monthOutsideClick(e) {
+  if (Date.now() - _monthPickerOpenTime < 150) return;
+  if (_openMonthWrap && !_openMonthWrap.contains(e.target)) closeMonthPickers();
+}
+function pickMonth(key) {
+  closeMonthPickers();
+  selectedMonth = key;
+
+  document.querySelectorAll('.month-trigger-text').forEach(t => {
+    t.style.animation = 'none';
+    void t.offsetWidth;
+    t.style.animation = 'dateTextSlide 0.3s ease forwards';
+    t.textContent = monthLabelOf(key);
+    setTimeout(() => { t.style.animation = ''; }, 400);
+  });
+  document.querySelectorAll('.month-list-el .custom-option').forEach(opt =>
+    opt.classList.toggle('selected', opt.dataset.value === key)
+  );
+
+  renderMonthly();
+  renderPerformers();
+  renderHistory();
 }
 
 // ── Date change handler ────────────────────────────────────────
