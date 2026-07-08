@@ -99,6 +99,10 @@
   <div class="nav-section">Stats</div>
   <div class="nav-item" onclick="nav('monthly', this)"><span class="icon">&#128202;</span> Monthly scoreboard</div>
   <div class="nav-item" onclick="nav('motm', this)"><span class="icon">&#11088;</span> Man of the match</div>
+  <div class="nav-item" onclick="nav('focus', this)">
+    <span class="icon">🎯</span>
+    Focus Model
+</div>
   <div class="nav-item" onclick="nav('performers', this)"><span class="icon">&#128081;</span> Top performers</div>
 
   <div class="nav-section">Records</div>
@@ -257,6 +261,59 @@
       </div>
     </div>
   </div>
+   <!-- FOCUS  MODEL-->
+
+   <div id="sec-focus" class="section">
+
+    <div class="page-header">
+        <h2 id="focus-title">X300 FE Champions</h2>
+        <p>Top performers based on selected FE model</p>
+    </div>
+
+    <div class="focus-toolbar">
+
+      <div class="custom-select-wrap" id="focus-picker-wrap">
+
+    <div class="custom-select-trigger"
+         id="focus-trigger"
+         onclick="toggleFocusPicker(event)">
+
+        <span class="date-selector-icon">🎯</span>
+
+        <span id="focus-trigger-text">
+            X300 FE
+        </span>
+
+        <span class="custom-select-arrow">
+            ▼
+        </span>
+
+    </div>
+
+    <div class="custom-select-dropdown"
+         id="focus-dropdown">
+
+        <div class="custom-select-list"
+             id="focus-list">
+
+        </div>
+
+    </div>
+
+</div>
+
+<button class="dl-btn"
+        onclick="downloadSection('sec-focus')">
+
+📤 Share to WhatsApp
+
+</button>
+
+    </div>
+
+    <div id="focus-player-list" class="focus-grid"></div>
+
+</div>
 
   <!-- TOP PERFORMERS -->
   <div id="sec-performers" class="section">

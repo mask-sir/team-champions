@@ -194,6 +194,8 @@ async function getLiveData() {
         name,
         team,
         photo: cols[2]?.trim() || '',
+        x300: Number(cols[3]) || 0,
+        v70: Number(cols[4]) || 0,
         working: false,
         vol: 0,
         timestamp: null
@@ -669,7 +671,88 @@ function renderMOTM() {
     tbody.appendChild(tr);
   });
 }
+/ ── RENDER: FOCUS MODEL ───────────────────────────────────── /
+function renderFocusModel(model = "x300"){
 
+    if(Object.keys(allPlayers).length === 0)
+        return;
+
+    
+const title = document.getElementById("focus-title");
+
+title.textContent =
+    model === "x300"
+        ? "X300 FE Champions"
+        : "V70 FE Champions";
+
+    const players =
+        Object.values(allPlayers);
+
+    const sorted =
+        [...players].sort((a,b)=>{
+
+            const av = model==="x300"
+                ? a.x300
+                : a.v70;
+
+            const bv = model==="x300"
+                ? b.x300
+                : b.v70;
+
+            return bv-av;
+
+        });
+
+    const wrap =
+        document.getElementById("focus-player-list");
+
+    wrap.innerHTML="";
+
+    sorted.forEach((player,index)=>{
+
+        const value =
+            model==="x300"
+            ? player.x300
+            : player.v70;
+
+        wrap.innerHTML += `
+
+        <div class="focus-card">
+
+            <div class="focus-rank">
+                #${index+1}
+            </div>
+
+            <img
+                src="${player.photo}"
+                class="focus-avatar"
+                onerror="this.src='images/default-avatar.png'">
+
+            <div class="focus-info">
+
+                <div class="focus-name">
+                    ${player.name}
+                </div>
+
+                <div class="focus-team">
+                    ${player.team}
+                </div>
+
+            </div>
+
+            <div class="focus-value">
+
+                ${value}
+
+            </div>
+
+        </div>
+
+        `;
+
+    });
+
+}
 // ── RENDER: Top Performers ─────────────────────────────────────
 function renderPerformers() {
   if (!selectedMonth) selectedMonth = getAllMonths()[0] || '';
@@ -1267,6 +1350,7 @@ function nav(section, el) {
   if (section === 'daily')      renderDaily();
   if (section === 'monthly')    renderMonthly();
   if (section === 'motm')       renderMOTM();
+  if (section === 'focus') renderFocusModel();
   if (section === 'performers') renderPerformers();
   if (section === 'history')    renderHistory();
   if (section === 'h2h')        renderH2H();
@@ -1375,6 +1459,8 @@ function pickDate(value) {
 // ── Monthly view picker ───────────────────────────────────────
 let _monthlyPickerOpen = false;
 let _monthlyPickerOpenTime = 0;
+let _focusPickerOpen = false;
+let _focusPickerOpenTime = 0;
 
 const MONTHLY_OPTIONS = [
   { value: 'players', label: '👤 Player Rankings' },
@@ -1384,8 +1470,53 @@ const MONTHLY_OPTIONS = [
   label: 'Point-wise Team Ranking'
 }
 ];
+const FOCUS_OPTIONS = [
+    {
+        value: "x300",
+        label: "X300 FE"
+    },
+    {
+        value: "v70",
+        label: "V70 FE"
+    }
+];
+
+function initFocusPicker() {
+
+    const list = document.getElementById("focus-list");
+
+    if (!list || list.dataset.built) return;
+
+    list.dataset.built = "1";
+
+    FOCUS_OPTIONS.forEach(opt => {
+
+        const item = document.createElement("div");
+
+        item.className =
+            "custom-option" +
+            (opt.value === "x300" ? " selected" : "");
+
+        item.dataset.value = opt.value;
+
+        item.textContent = opt.label;
+
+        item.onclick = (e) => {
+
+            e.stopPropagation();
+
+            pickFocus(opt.value, opt.label);
+
+        };
+
+        list.appendChild(item);
+
+    });
+
+}
 
 function initMonthlyPicker() {
+  
   const list = document.getElementById('monthly-list');
   if (!list || list.dataset.built) return;
   list.dataset.built = '1';
@@ -1402,6 +1533,15 @@ function initMonthlyPicker() {
 function toggleMonthlyPicker(e) {
   if (e) e.stopPropagation();
   _monthlyPickerOpen ? closeMonthlyPicker() : openMonthlyPicker();
+}
+function toggleFocusPicker(e){
+
+    if(e) e.stopPropagation();
+
+    _focusPickerOpen
+        ? closeFocusPicker()
+        : openFocusPicker();
+
 }
 
 function openMonthlyPicker() {
@@ -1420,6 +1560,58 @@ function openMonthlyPicker() {
   document.addEventListener('click', _monthlyOutsideClick);
 }
 
+function openFocusPicker(){
+
+    // Build the options only once
+    initFocusPicker();
+
+    const wrap =
+        document.getElementById("focus-picker-wrap");
+
+    if(!wrap) return;
+
+    // Mark picker as open
+    _focusPickerOpen = true;
+
+    // Save opening time
+    _focusPickerOpenTime = Date.now();
+
+    // Show dropdown
+    wrap.classList.add("open");
+
+    // Get all options
+    const options =
+        wrap.querySelectorAll(".custom-option");
+
+    // Prepare animation
+    options.forEach((opt,i)=>{
+
+        opt.classList.remove("option-visible");
+
+        opt.style.animationDelay =
+            (i * 0.05) + "s";
+
+    });
+
+    // Play animation
+    requestAnimationFrame(()=>{
+
+        options.forEach(opt=>{
+
+            opt.classList.add("option-visible");
+
+        });
+
+    });
+
+    // Close when clicking outside
+    document.addEventListener(
+        "click",
+        focusOutsideClick
+    );
+
+}
+
 function closeMonthlyPicker() {
   const wrap = document.getElementById('monthly-picker-wrap');
   if (!wrap) return;
@@ -1428,10 +1620,62 @@ function closeMonthlyPicker() {
   document.removeEventListener('click', _monthlyOutsideClick);
 }
 
+function closeFocusPicker(){
+
+    const wrap =
+        document.getElementById("focus-picker-wrap");
+
+    if(!wrap) return;
+
+    _focusPickerOpen = false;
+
+    wrap.classList.remove("open");
+
+    document.removeEventListener(
+        "click",
+        focusOutsideClick
+    );
+
+}
+
 function _monthlyOutsideClick(e) {
   if (Date.now() - _monthlyPickerOpenTime < 150) return;
   const wrap = document.getElementById('monthly-picker-wrap');
   if (!wrap || !wrap.contains(e.target)) closeMonthlyPicker();
+}
+
+function focusOutsideClick(e){
+
+    // Ignore the same click that opened the dropdown
+    if (Date.now() - _focusPickerOpenTime < 150)
+        return;
+
+    const wrap =
+        document.getElementById("focus-picker-wrap");
+
+    if (!wrap) return;
+
+    // Close if the click happened outside the dropdown
+    if (!wrap.contains(e.target))
+        closeFocusPicker();
+
+}
+
+function pickFocus(value, label){
+
+    closeFocusPicker();
+
+    document.getElementById("focus-trigger-text").textContent = label;
+
+    document.querySelectorAll("#focus-list .custom-option")
+        .forEach(opt =>
+            opt.classList.toggle(
+                "selected",
+                opt.dataset.value === value
+            )
+        );
+
+    renderFocusModel(value);
 }
 
 function pickMonthlyView(value, label) {
@@ -1531,6 +1775,7 @@ function pickMonth(key) {
 
   renderMonthly();
   renderPerformers();
+  renderFocusModel();
   renderHistory();
 }
 
